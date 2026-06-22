@@ -25,7 +25,7 @@ export function PlayerCard({ player, onClick, showPrice = true, disabled = false
     <button
       onClick={onClick}
       disabled={disabled || !onClick}
-      className={`relative w-44 h-64 rounded-xl border-2 bg-gradient-to-br p-3 flex flex-col justify-between shadow-xl transition-all duration-300 select-none ${cardStyles} ${
+      className={`relative w-44 h-64 rounded-xl border-2 bg-linear-to-br p-3 flex flex-col justify-between shadow-xl transition-all duration-300 select-none ${cardStyles} ${
         onClick && !disabled ? 'hover:-translate-y-2 hover:shadow-2xl cursor-pointer active:scale-95' : ''
       } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
     >
@@ -39,10 +39,10 @@ export function PlayerCard({ player, onClick, showPrice = true, disabled = false
           </span>
         </div>
         <div className="text-right flex flex-col items-end">
-          <span className="text-sm font-semibold truncate max-w-[80px]" title={player.club}>
+          <span className="text-sm font-semibold truncate max-w-20" title={player.club}>
             {player.club}
           </span>
-          <span className="text-xs opacity-80 mt-0.5 truncate max-w-[80px]" title={player.nationality}>
+          <span className="text-xs opacity-80 mt-0.5 truncate max-w-20" title={player.nationality}>
             {player.nationality}
           </span>
         </div>

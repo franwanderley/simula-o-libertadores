@@ -7,11 +7,11 @@ export default function Home() {
       <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-r from-amber-400 to-yellow-500 p-2.5 rounded-xl text-slate-950 shadow-lg shadow-amber-500/20">
+            <div className="bg-linear-to-r from-amber-400 to-yellow-500 p-2.5 rounded-xl text-slate-950 shadow-lg shadow-amber-500/20">
               <Trophy className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-wider uppercase leading-none bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+              <h1 className="text-xl font-black tracking-wider uppercase leading-none bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent">
                 6 a 3
               </h1>
               <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mt-1">
