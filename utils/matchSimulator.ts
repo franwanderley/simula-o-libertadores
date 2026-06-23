@@ -1,0 +1,376 @@
+import { PlayerPosition } from '../app/types/game';
+
+export interface SimPlayer {
+  name: string;
+  overall: number;
+  position: PlayerPosition;
+}
+
+export interface SimTeam {
+  name: string;
+  overall: number;
+  players: SimPlayer[];
+  chemistry: number;
+  formation: string;
+  tactic: 'Muito Defensiva' | 'Defensiva' | 'Neutra' | 'Ofensiva' | 'Muito Ofensiva';
+}
+
+export interface MatchEvent {
+  minute: number;
+  type: 'goal' | 'shot' | 'foul';
+  teamName: string;
+  description: string;
+  scorer?: string;
+}
+
+export interface MatchStats {
+  possessionA: number;
+  possessionB: number;
+  shotsA: number;
+  shotsB: number;
+  foulsA: number;
+  foulsB: number;
+}
+
+export interface MatchResult {
+  goalsA: number;
+  goalsB: number;
+  events: MatchEvent[];
+  stats: MatchStats;
+}
+
+const FORMATION_POSITIONS: Record<string, PlayerPosition[]> = {
+  '4-4-2': ['GK', 'DF', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'MF', 'FW', 'FW'],
+  '4-3-3': ['GK', 'DF', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'FW', 'FW', 'FW'],
+  '3-5-2': ['GK', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'MF', 'MF', 'FW', 'FW'],
+  '5-3-2': ['GK', 'DF', 'DF', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'FW', 'FW'],
+  '4-2-3-1': ['GK', 'DF', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'MF', 'MF', 'FW'],
+  '3-4-3': ['GK', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'MF', 'FW', 'FW', 'FW'],
+  '4-5-1': ['GK', 'DF', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'MF', 'MF', 'FW'],
+  '4-3-2-1': ['GK', 'DF', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'FW', 'FW', 'FW'],
+  '5-4-1': ['GK', 'DF', 'DF', 'DF', 'DF', 'DF', 'MF', 'MF', 'MF', 'MF', 'FW']
+};
+
+function getPositionsFromFormation(formation: string): PlayerPosition[] {
+  return FORMATION_POSITIONS[formation] || FORMATION_POSITIONS['4-4-2'];
+}
+
+const surnames = [
+  'Silva', 'Santos', 'Oliveira', 'Souza', 'Rodrigues', 'Ferreira', 'Alves', 'Pereira', 'Gomes', 'Ribeiro',
+  'Fernandez', 'Gonzalez', 'Rodriguez', 'Lopez', 'Martinez', 'Gomez', 'Diaz', 'Sanchez', 'Perez', 'Romero',
+  'Alvarez', 'Ruiz', 'Ramirez', 'Flores', 'Acosta', 'Herrera', 'Medina', 'Vargas', 'Castro', 'Guzman'
+];
+
+export function getSimTeamFromOpponent(opponent: {
+  name: string;
+  attackOverall: number;
+  defenseOverall: number;
+  teamChemistry: number;
+  tier: 'very_good' | 'good' | 'medium' | 'bad';
+}): SimTeam {
+  const avgOverall = Math.round((opponent.attackOverall + opponent.defenseOverall) / 2);
+  const formations = ['4-4-2', '4-3-3', '3-5-2', '5-3-2', '4-2-3-1', '3-4-3', '4-5-1', '4-3-2-1', '5-4-1'];
+  
+  let randomVal = 0;
+  for (let i = 0; i < opponent.name.length; i++) {
+    randomVal += opponent.name.codePointAt(i) || 0;
+  }
+  
+  const formation = formations[randomVal % formations.length];
+  
+  let tactic: 'Muito Defensiva' | 'Defensiva' | 'Neutra' | 'Ofensiva' | 'Muito Ofensiva';
+  if (opponent.tier === 'very_good') {
+    tactic = (randomVal % 2 === 0) ? 'Ofensiva' : 'Muito Ofensiva';
+  } else if (opponent.tier === 'good') {
+    tactic = (randomVal % 2 === 0) ? 'Ofensiva' : 'Neutra';
+  } else if (opponent.tier === 'medium') {
+    tactic = 'Neutra';
+  } else {
+    tactic = (randomVal % 2 === 0) ? 'Defensiva' : 'Muito Defensiva';
+  }
+  
+  const players: SimPlayer[] = [];
+  const positions = getPositionsFromFormation(formation);
+  const teamSurnames = [...surnames].sort((a, b) => {
+    const codeA = (a.codePointAt(0) || 0) + (opponent.name.codePointAt(0) || 0);
+    const codeB = (b.codePointAt(0) || 0) + (opponent.name.codePointAt(1) || 0);
+    return (codeA % 10) - (codeB % 10);
+  });
+  
+  for (let i = 0; i < 11; i++) {
+    const pos = positions[i];
+    const name = teamSurnames[i] || `Jogador ${i + 1}`;
+    let baseOvr = avgOverall;
+    if (pos === 'GK' || pos === 'DF') {
+      baseOvr = opponent.defenseOverall;
+    } else if (pos === 'FW') {
+      baseOvr = opponent.attackOverall;
+    }
+    const variation = ((randomVal + i) % 7) - 3;
+    const finalOvr = Math.min(99, Math.max(50, baseOvr + variation));
+    players.push({
+      name,
+      overall: finalOvr,
+      position: pos
+    });
+  }
+  
+  return {
+    name: opponent.name,
+    overall: avgOverall,
+    players,
+    chemistry: opponent.teamChemistry,
+    formation,
+    tactic
+  };
+}
+
+function getTacticCoefficients(tactic: string) {
+  switch (tactic) {
+    case 'Muito Defensiva': return { atk: 0.6, def: 1.4 };
+    case 'Defensiva': return { atk: 0.8, def: 1.2 };
+    case 'Ofensiva': return { atk: 1.2, def: 0.8 };
+    case 'Muito Ofensiva': return { atk: 1.4, def: 0.6 };
+    case 'Neutra':
+    default: return { atk: 1, def: 1 };
+  }
+}
+
+function getFormationCoefficients(formation: string) {
+  switch (formation) {
+    case '3-4-3': return { atk: 1.1, def: 0.9 };
+    case '4-3-3': return { atk: 1.05, def: 0.95 };
+    case '3-5-2': return { atk: 1.05, def: 0.95 };
+    case '4-3-2-1': return { atk: 1.05, def: 0.95 };
+    case '4-5-1': return { atk: 0.95, def: 1.05 };
+    case '5-3-2': return { atk: 0.9, def: 1.1 };
+    case '5-4-1': return { atk: 0.85, def: 1.15 };
+    case '4-4-2':
+    case '4-2-3-1':
+    default: return { atk: 1, def: 1 };
+  }
+}
+
+const goalTemplates = [
+  'GOL! {player} chuta forte no canto e abre o placar!',
+  'GOL! {player} cabeceia firme sem chances para o goleiro!',
+  'GOL! Linda jogada individual de {player} que finaliza com classe!',
+  'GOL! {player} cobra falta com maestria no angulo!'
+];
+
+const shotTemplates = [
+  '{player} arrisca de longe e a bola passa raspando o travessao!',
+  'Grande jogada! {player} chuta cruzado e o goleiro faz grande defesa.',
+  '{player} recebe passe na entrada da area, mas chuta por cima do gol.',
+  'Grande defesa! {player} cabeceia a queima-roupa e o goleiro salva.',
+  '{player} arrisca a finalizacao, mas a bola bate na zaga e sai.'
+];
+
+const foulTemplates = [
+  'Falta! {player} chega forte por baixo e interrompe a jogada.',
+  'O arbitro marca falta de {player} no circulo central.',
+  'Falta dura cometida por {player}, o juiz chama a atencao do atleta.',
+  '{player} puxa a camisa do adversario e comete a infracao.',
+  '{player} tenta dar o carrinho, erra a bola e comete a falta.'
+];
+
+function generateGoalDescription(player: string): string {
+  const t = goalTemplates[Math.floor(Math.random() * goalTemplates.length)];
+  return t.replace('{player}', player);
+}
+
+function generateShotDescription(player: string): string {
+  const t = shotTemplates[Math.floor(Math.random() * shotTemplates.length)];
+  return t.replace('{player}', player);
+}
+
+function generateFoulDescription(player: string): string {
+  const t = foulTemplates[Math.floor(Math.random() * foulTemplates.length)];
+  return t.replace('{player}', player);
+}
+
+function chooseScorer(team: SimTeam): string {
+  const playerWeights = team.players.map(player => {
+    let posWeight = 1;
+    if (player.position === 'GK') posWeight = 0.01;
+    else if (player.position === 'DF') posWeight = 0.15;
+    else if (player.position === 'MF') posWeight = 0.5;
+    else if (player.position === 'FW') posWeight = 1.2;
+    return {
+      name: player.name,
+      weight: posWeight * player.overall
+    };
+  });
+  
+  const totalWeight = playerWeights.reduce((acc, p) => acc + p.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const p of playerWeights) {
+    r -= p.weight;
+    if (r <= 0) {
+      return p.name;
+    }
+  }
+  return team.players[0]?.name || 'Jogador';
+}
+
+function chooseFouler(team: SimTeam): string {
+  const playerWeights = team.players.map(player => {
+    let posWeight = 1;
+    if (player.position === 'GK') posWeight = 0.05;
+    else if (player.position === 'DF') posWeight = 1.5;
+    else if (player.position === 'MF') posWeight = 1.2;
+    else if (player.position === 'FW') posWeight = 0.5;
+    return {
+      name: player.name,
+      weight: posWeight * (100 - player.overall + 10)
+    };
+  });
+  const totalWeight = playerWeights.reduce((acc, p) => acc + p.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const p of playerWeights) {
+    r -= p.weight;
+    if (r <= 0) {
+      return p.name;
+    }
+  }
+  return team.players[0]?.name || 'Jogador';
+}
+
+function processChance(
+  isTeamAChance: boolean,
+  finalAtkA: number,
+  finalDefA: number,
+  finalAtkB: number,
+  finalDefB: number,
+  teamA: SimTeam,
+  teamB: SimTeam,
+  min: number
+): { goal: boolean; event?: MatchEvent } {
+  const rngFactor = Math.random() * 30 - 15;
+  const attack = isTeamAChance ? finalAtkA : finalAtkB;
+  const defense = isTeamAChance ? finalDefB : finalDefA;
+  const scoreProb = Math.min(0.8, Math.max(0.05, (attack - defense + rngFactor + 10) / 100));
+  
+  if (Math.random() < scoreProb) {
+    const scoringTeam = isTeamAChance ? teamA : teamB;
+    const scorer = chooseScorer(scoringTeam);
+    return {
+      goal: true,
+      event: {
+        minute: min,
+        type: 'goal',
+        scorer,
+        teamName: scoringTeam.name,
+        description: generateGoalDescription(scorer)
+      }
+    };
+  }
+  return { goal: false };
+}
+
+export function simulateMatch(teamA: SimTeam, teamB: SimTeam): MatchResult {
+  const effectiveOvrA = teamA.overall * (0.9 + (teamA.chemistry / 100) * 0.2);
+  const effectiveOvrB = teamB.overall * (0.9 + (teamB.chemistry / 100) * 0.2);
+  
+  const tacticA = getTacticCoefficients(teamA.tactic);
+  const tacticB = getTacticCoefficients(teamB.tactic);
+  
+  const formA = getFormationCoefficients(teamA.formation);
+  const formB = getFormationCoefficients(teamB.formation);
+  
+  const finalAtkA = effectiveOvrA * tacticA.atk * formA.atk;
+  const finalDefA = effectiveOvrA * tacticA.def * formA.def;
+  
+  const finalAtkB = effectiveOvrB * tacticB.atk * formB.atk;
+  const finalDefB = effectiveOvrB * tacticB.def * formB.def;
+  
+  const getMidfieldStrength = (team: SimTeam) => {
+    const midfielders = team.players.filter(p => p.position === 'MF');
+    if (midfielders.length === 0) return team.overall;
+    const sum = midfielders.reduce((acc, p) => acc + p.overall, 0);
+    return sum / midfielders.length;
+  };
+  
+  const midStrengthA = getMidfieldStrength(teamA);
+  const midStrengthB = getMidfieldStrength(teamB);
+  
+  const midfieldTotal = midStrengthA + midStrengthB;
+  const basePossessionA = (midStrengthA / midfieldTotal) * 100;
+  
+  const tacticPossessionDiff = (tacticA.atk - tacticB.atk) * 5;
+  const rngPossession = Math.random() * 6 - 3;
+  const finalPossessionA = Math.min(65, Math.max(35, Math.round(basePossessionA + tacticPossessionDiff + rngPossession)));
+  const finalPossessionB = 100 - finalPossessionA;
+  
+  const events: MatchEvent[] = [];
+  let goalsA = 0;
+  let goalsB = 0;
+  let shotsA = 0;
+  let shotsB = 0;
+  let foulsA = 0;
+  let foulsB = 0;
+  
+  for (let min = 1; min <= 90; min++) {
+    if (Math.random() < 0.08) {
+      const isTeamAChance = Math.random() < (finalPossessionA / 100);
+      if (isTeamAChance) {
+        shotsA++;
+      } else {
+        shotsB++;
+      }
+      const res = processChance(isTeamAChance, finalAtkA, finalDefA, finalAtkB, finalDefB, teamA, teamB, min);
+      if (res.goal && res.event) {
+        if (isTeamAChance) {
+          goalsA++;
+        } else {
+          goalsB++;
+        }
+        events.push(res.event);
+      } else {
+        const shooterTeam = isTeamAChance ? teamA : teamB;
+        const shooterName = chooseScorer(shooterTeam);
+        events.push({
+          minute: min,
+          type: 'shot',
+          teamName: shooterTeam.name,
+          scorer: shooterName,
+          description: generateShotDescription(shooterName)
+        });
+      }
+    }
+    
+    if (Math.random() < 0.12) {
+      const isTeamAFoul = Math.random() < 0.5;
+      const foulerTeam = isTeamAFoul ? teamA : teamB;
+      const foulerName = chooseFouler(foulerTeam);
+      if (isTeamAFoul) {
+        foulsA++;
+      } else {
+        foulsB++;
+      }
+      events.push({
+        minute: min,
+        type: 'foul',
+        teamName: foulerTeam.name,
+        scorer: foulerName,
+        description: generateFoulDescription(foulerName)
+      });
+    }
+  }
+  
+  events.sort((a, b) => a.minute - b.minute);
+  
+  return {
+    goalsA,
+    goalsB,
+    events,
+    stats: {
+      possessionA: finalPossessionA,
+      possessionB: finalPossessionB,
+      shotsA,
+      shotsB,
+      foulsA,
+      foulsB
+    }
+  };
+}

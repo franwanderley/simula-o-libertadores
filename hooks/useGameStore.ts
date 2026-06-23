@@ -3,6 +3,17 @@ import { Player, Formation, PlayStyle, SquadSlot, OpponentTeam, GroupStandingRow
 import { getSlotsForFormation } from '../utils/formations';
 import { canBuyPlayer } from '../utils/pricing';
 import { opponentTeams } from '../utils/teams';
+import { SimTeam, MatchResult, getSimTeamFromOpponent, simulateMatch } from '../utils/matchSimulator';
+
+function getMatchRound(i: number, j: number): number {
+  if ((i === 0 && j === 1) || (i === 2 && j === 3)) return 1;
+  if ((i === 0 && j === 2) || (i === 1 && j === 3)) return 2;
+  if ((i === 0 && j === 3) || (i === 1 && j === 2)) return 3;
+  if ((i === 1 && j === 0) || (i === 3 && j === 2)) return 4;
+  if ((i === 2 && j === 0) || (i === 3 && j === 1)) return 5;
+  if ((i === 3 && j === 0) || (i === 2 && j === 1)) return 6;
+  return 1;
+}
 
 interface GameStore {
   budget: number;
@@ -18,9 +29,16 @@ interface GameStore {
   isDrawCompleted: boolean;
   groupStandings: Record<string, GroupStandingRow[]> | null;
   isGroupSimulated: boolean;
+  currentGroupRound: number;
   knockoutPots: { potA: OpponentTeam[], potB: OpponentTeam[] } | null;
   knockoutMatches: KnockoutMatch[] | null;
   isKnockoutDrawCompleted: boolean;
+  knockoutRound: 'R16' | 'QF' | 'SF' | 'F' | 'ended';
+  qfMatches: KnockoutMatch[] | null;
+  sfMatches: KnockoutMatch[] | null;
+  fMatch: KnockoutMatch | null;
+  champion: OpponentTeam | null;
+  matchResults: Record<string, MatchResult>;
   setFormation: (formation: Formation) => void;
   setPlayStyle: (playStyle: PlayStyle) => void;
   buyPlayer: (player: Player, slotId: string) => boolean;
@@ -33,6 +51,9 @@ interface GameStore {
   simulateGroupStage: () => void;
   runKnockoutDraw: () => void;
   resetKnockoutDraw: () => void;
+  simulateKnockoutRound: () => void;
+  advanceGroupRound: () => void;
+  updateGroupStandingsForRound: (round: number) => void;
 }
 
 function calculateAttackOverall(squad: SquadSlot[], playStyle: PlayStyle): number {
@@ -114,6 +135,55 @@ function calculateChemistry(squad: SquadSlot[], formation: Formation, playStyle:
   return Math.min(100, Math.round(score));
 }
 
+const DEFAULT_POSITION_NAMES: Record<string, string> = {
+  gk: 'Weverton',
+  lb: 'Guilherme Arana',
+  lwb: 'Joaquín Piquerez',
+  lcb: 'Thiago Silva',
+  cb: 'Gustavo Gómez',
+  rcb: 'Fabrício Bruno',
+  rb: 'Luis Advíncula',
+  rwb: 'Luis Advíncula',
+  lm: 'Jhon Arias',
+  ldm: 'Erick Pulgar',
+  cm: 'Gerson',
+  lcm: 'Nicolás De La Cruz',
+  rcm: 'Rodrigo Garro',
+  cam: 'G. De Arrascaeta',
+  rdm: 'Arturo Vidal',
+  rm: 'Lucas Moura',
+  lam: 'Thiago Almada',
+  ram: 'Raphael Veiga',
+  ls: 'Germán Cano',
+  rs: 'Hulk',
+  lw: 'Estêvão',
+  st: 'Pedro',
+  rw: 'Luiz Henrique',
+  lf: 'Jonathan Calleri',
+  rf: 'Miguel Borja',
+};
+
+const getUserSimTeam = (get: () => GameStore): SimTeam => {
+  const { squad, attackOverall, defenseOverall, teamChemistry, formation, playStyle } = get();
+  const avgOverall = Math.round((attackOverall + defenseOverall) / 2);
+  const players = squad.map(slot => ({
+    name: slot.player ? slot.player.name : (DEFAULT_POSITION_NAMES[slot.id.toLowerCase()] || slot.label),
+    overall: slot.player ? slot.player.overall : 60,
+    position: slot.position
+  }));
+  let tactic: 'Muito Defensiva' | 'Defensiva' | 'Neutra' | 'Ofensiva' | 'Muito Ofensiva' = 'Neutra';
+  if (playStyle === 'attack') tactic = 'Ofensiva';
+  else if (playStyle === 'defense') tactic = 'Defensiva';
+  return {
+    name: 'Seu Time (Draft)',
+    overall: avgOverall,
+    players,
+    chemistry: teamChemistry,
+    formation,
+    tactic
+  };
+};
+
 export const useGameStore = create<GameStore>((set, get) => ({
   budget: 100000,
   formation: '4-4-2',
@@ -128,9 +198,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   isDrawCompleted: false,
   groupStandings: null,
   isGroupSimulated: false,
+  currentGroupRound: 0,
   knockoutPots: null,
   knockoutMatches: null,
   isKnockoutDrawCompleted: false,
+  knockoutRound: 'R16',
+  qfMatches: null,
+  sfMatches: null,
+  fMatch: null,
+  champion: null,
+  matchResults: {},
 
   setFormation: (formation) => {
     const { squad, budget } = get();
@@ -255,6 +332,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isDrawCompleted: false,
       groupStandings: null,
       isGroupSimulated: false,
+      currentGroupRound: 0,
       knockoutPots: null,
       knockoutMatches: null,
       isKnockoutDrawCompleted: false,
@@ -299,6 +377,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       groups,
       isDrawCompleted: true,
+      currentGroupRound: 0,
     });
   },
 
@@ -308,18 +387,58 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isDrawCompleted: false,
       groupStandings: null,
       isGroupSimulated: false,
+      currentGroupRound: 0,
       knockoutPots: null,
       knockoutMatches: null,
       isKnockoutDrawCompleted: false,
+      knockoutRound: 'R16',
+      qfMatches: null,
+      sfMatches: null,
+      fMatch: null,
+      champion: null,
+      matchResults: {},
     });
   },
 
   simulateGroupStage: () => {
     const { groups } = get();
     if (!groups) return;
+    const results = { ...get().matchResults };
+    for (const [gKey, teams] of Object.entries(groups)) {
+      for (let i = 0; i < teams.length; i++) {
+        for (let j = 0; j < teams.length; j++) {
+          if (i === j) continue;
+          const teamA = teams[i];
+          const teamB = teams[j];
+          const simTeamA = teamA.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(teamA);
+          const simTeamB = teamB.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(teamB);
+          const result = simulateMatch(simTeamA, simTeamB);
+          results[`group_${gKey}_${teamA.id}_${teamB.id}`] = result;
+        }
+      }
+    }
+    set({
+      matchResults: results,
+      currentGroupRound: 0,
+    });
+    get().updateGroupStandingsForRound(0);
+  },
+
+  advanceGroupRound: () => {
+    const nextRound = get().currentGroupRound + 1;
+    set({ currentGroupRound: nextRound });
+    get().updateGroupStandingsForRound(nextRound);
+    if (nextRound === 6) {
+      set({ isGroupSimulated: true });
+    }
+  },
+
+  updateGroupStandingsForRound: (round: number) => {
+    const { groups, matchResults } = get();
+    if (!groups) return;
     const standings: Record<string, GroupStandingRow[]> = {};
     for (const [gKey, teams] of Object.entries(groups)) {
-      standings[gKey] = teams.map(t => ({
+      const list: GroupStandingRow[] = teams.map(t => ({
         teamId: t.id,
         name: t.name,
         logoColor: t.logoColor,
@@ -333,53 +452,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
         goalDifference: 0,
         points: 0
       }));
-    }
-    const getGoals = (lambda: number) => {
-      const L = Math.exp(-lambda);
-      let k = 0;
-      let p = 1;
-      do {
-        k++;
-        p *= Math.random();
-      } while (p > L && k < 10);
-      return k - 1;
-    };
-    for (const [gKey, teams] of Object.entries(groups)) {
-      const list = standings[gKey];
       for (let i = 0; i < teams.length; i++) {
         for (let j = 0; j < teams.length; j++) {
           if (i === j) continue;
-          const teamA = teams[i];
-          const teamB = teams[j];
-          const powerA = (teamA.attackOverall * 0.6 + teamA.defenseOverall * 0.4) + (teamA.teamChemistry * 0.1) + 2;
-          const powerB = (teamB.attackOverall * 0.6 + teamB.defenseOverall * 0.4) + (teamB.teamChemistry * 0.1);
-          const lambdaA = Math.max(0.5, (powerA - powerB) / 10 + 1.5);
-          const lambdaB = Math.max(0.5, (powerB - powerA) / 10 + 1.2);
-          const goalsA = getGoals(lambdaA);
-          const goalsB = getGoals(lambdaB);
-          const rowA = list.find(r => r.teamId === teamA.id)!;
-          const rowB = list.find(r => r.teamId === teamB.id)!;
-          rowA.played += 1;
-          rowB.played += 1;
-          rowA.goalsFor += goalsA;
-          rowA.goalsAgainst += goalsB;
-          rowB.goalsFor += goalsB;
-          rowB.goalsAgainst += goalsA;
-          rowA.goalDifference = rowA.goalsFor - rowA.goalsAgainst;
-          rowB.goalDifference = rowB.goalsFor - rowB.goalsAgainst;
-          if (goalsA > goalsB) {
-            rowA.won += 1;
-            rowA.points += 3;
-            rowB.lost += 1;
-          } else if (goalsA < goalsB) {
-            rowB.won += 1;
-            rowB.points += 3;
-            rowA.lost += 1;
-          } else {
-            rowA.drawn += 1;
-            rowA.points += 1;
-            rowB.drawn += 1;
-            rowB.points += 1;
+          const matchRound = getMatchRound(i, j);
+          if (matchRound <= round) {
+            const teamA = teams[i];
+            const teamB = teams[j];
+            const result = matchResults[`group_${gKey}_${teamA.id}_${teamB.id}`];
+            if (result) {
+              const rowA = list.find(r => r.teamId === teamA.id)!;
+              const rowB = list.find(r => r.teamId === teamB.id)!;
+              rowA.played += 1;
+              rowB.played += 1;
+              rowA.goalsFor += result.goalsA;
+              rowA.goalsAgainst += result.goalsB;
+              rowB.goalsFor += result.goalsB;
+              rowB.goalsAgainst += result.goalsA;
+              rowA.goalDifference = rowA.goalsFor - rowA.goalsAgainst;
+              rowB.goalDifference = rowB.goalsFor - rowB.goalsAgainst;
+              if (result.goalsA > result.goalsB) {
+                rowA.won += 1;
+                rowA.points += 3;
+                rowB.lost += 1;
+              } else if (result.goalsA < result.goalsB) {
+                rowB.won += 1;
+                rowB.points += 3;
+                rowA.lost += 1;
+              } else {
+                rowA.drawn += 1;
+                rowA.points += 1;
+                rowB.drawn += 1;
+                rowB.points += 1;
+              }
+            }
           }
         }
       }
@@ -389,31 +495,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
         if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
         return a.name.localeCompare(b.name);
       });
+      standings[gKey] = list;
     }
-    const findOpponentTeam = (id: string): OpponentTeam | null => {
-      for (const groupTeams of Object.values(groups)) {
-        const found = groupTeams.find(t => t.id === id);
-        if (found) return found;
+    if (round === 6) {
+      const findOpponentTeam = (id: string): OpponentTeam | null => {
+        for (const groupTeams of Object.values(groups)) {
+          const found = groupTeams.find(t => t.id === id);
+          if (found) return found;
+        }
+        return null;
+      };
+      const firstPlaces: OpponentTeam[] = [];
+      const secondPlaces: OpponentTeam[] = [];
+      const groupKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      for (const gKey of groupKeys) {
+        const standing = standings[gKey];
+        const t1 = findOpponentTeam(standing[0].teamId);
+        const t2 = findOpponentTeam(standing[1].teamId);
+        if (t1) firstPlaces.push(t1);
+        if (t2) secondPlaces.push(t2);
       }
-      return null;
-    };
-    const firstPlaces: OpponentTeam[] = [];
-    const secondPlaces: OpponentTeam[] = [];
-    const groupKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    for (const gKey of groupKeys) {
-      const standing = standings[gKey];
-      const t1 = findOpponentTeam(standing[0].teamId);
-      const t2 = findOpponentTeam(standing[1].teamId);
-      if (t1) firstPlaces.push(t1);
-      if (t2) secondPlaces.push(t2);
+      set({
+        groupStandings: standings,
+        knockoutPots: { potA: firstPlaces, potB: secondPlaces },
+      });
+    } else {
+      set({ groupStandings: standings });
     }
-    set({
-      groupStandings: standings,
-      isGroupSimulated: true,
-      knockoutPots: { potA: firstPlaces, potB: secondPlaces },
-      knockoutMatches: null,
-      isKnockoutDrawCompleted: false,
-    });
   },
 
   runKnockoutDraw: () => {
@@ -441,6 +549,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       knockoutMatches,
       isKnockoutDrawCompleted: true,
+      knockoutRound: 'R16',
+      qfMatches: null,
+      sfMatches: null,
+      fMatch: null,
+      champion: null,
     });
   },
 
@@ -448,6 +561,122 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       knockoutMatches: null,
       isKnockoutDrawCompleted: false,
+      knockoutRound: 'R16',
+      qfMatches: null,
+      sfMatches: null,
+      fMatch: null,
+      champion: null,
+      matchResults: {},
     });
+  },
+
+  simulateKnockoutRound: () => {
+    const { knockoutRound, knockoutMatches, qfMatches, sfMatches, fMatch, matchResults } = get();
+    const results = { ...matchResults };
+    
+    const simulateMatchList = (matches: KnockoutMatch[]) => {
+      return matches.map(m => {
+        const simTeamA = m.teamA.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(m.teamA);
+        const simTeamB = m.teamB.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(m.teamB);
+        let result = simulateMatch(simTeamA, simTeamB);
+        let penWinnerId: string | null = null;
+        
+        if (result.goalsA === result.goalsB) {
+          const rand = Math.random() > 0.5;
+          penWinnerId = rand ? m.teamA.id : m.teamB.id;
+          const pWinnerName = rand ? m.teamA.name : m.teamB.name;
+          result = {
+            ...result,
+            events: [
+              ...result.events,
+              {
+                minute: 120,
+                type: 'goal',
+                scorer: `[Pênaltis] Decidido nos pênaltis para o ${pWinnerName}`,
+                teamName: pWinnerName,
+                description: `Decidido nos penaltis para o ${pWinnerName}`
+              }
+            ]
+          };
+        }
+        
+        results[m.id] = result;
+        const winnerId = penWinnerId ? penWinnerId : (result.goalsA > result.goalsB ? m.teamA.id : m.teamB.id);
+        
+        return {
+          ...m,
+          winnerId,
+          scores: [{ home: result.goalsA, away: result.goalsB }]
+        };
+      });
+    };
+    
+    if (knockoutRound === 'R16' && knockoutMatches) {
+      const simulated = simulateMatchList(knockoutMatches);
+      const winners = simulated.map(m => {
+        return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
+      });
+      const qf: KnockoutMatch[] = [];
+      for (let i = 0; i < 4; i++) {
+        qf.push({
+          id: `QF_${i + 1}`,
+          teamA: winners[i * 2],
+          teamB: winners[i * 2 + 1],
+          winnerId: null
+        });
+      }
+      set({
+        knockoutMatches: simulated,
+        qfMatches: qf,
+        knockoutRound: 'QF',
+        matchResults: results
+      });
+    } else if (knockoutRound === 'QF' && qfMatches) {
+      const simulated = simulateMatchList(qfMatches);
+      const winners = simulated.map(m => {
+        return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
+      });
+      const sf: KnockoutMatch[] = [];
+      for (let i = 0; i < 2; i++) {
+        sf.push({
+          id: `SF_${i + 1}`,
+          teamA: winners[i * 2],
+          teamB: winners[i * 2 + 1],
+          winnerId: null
+        });
+      }
+      set({
+        qfMatches: simulated,
+        sfMatches: sf,
+        knockoutRound: 'SF',
+        matchResults: results
+      });
+    } else if (knockoutRound === 'SF' && sfMatches) {
+      const simulated = simulateMatchList(sfMatches);
+      const winners = simulated.map(m => {
+        return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
+      });
+      const f: KnockoutMatch = {
+        id: 'F_1',
+        teamA: winners[0],
+        teamB: winners[1],
+        winnerId: null
+      };
+      set({
+        sfMatches: simulated,
+        fMatch: f,
+        knockoutRound: 'F',
+        matchResults: results
+      });
+    } else if (knockoutRound === 'F' && fMatch) {
+      const simulated = simulateMatchList([fMatch])[0];
+      const champion = simulated.winnerId === simulated.teamA.id ? simulated.teamA : simulated.teamB;
+      set({
+        fMatch: simulated,
+        champion,
+        knockoutRound: 'ended',
+        matchResults: results
+      });
+    }
   },
 }));
