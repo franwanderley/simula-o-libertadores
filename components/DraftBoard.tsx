@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { SetupStep } from './SetupStep';
 import { DraftStep } from './DraftStep';
 import { CompleteStep } from './CompleteStep';
+import { TournamentStep } from './TournamentStep';
 
 export function DraftBoard() {
-  const [step, setStep] = useState<'setup' | 'draft' | 'complete'>('setup');
+  const [step, setStep] = useState<'setup' | 'draft' | 'complete' | 'tournament'>('setup');
 
   const handleStartDraft = () => {
     setStep('draft');
@@ -14,6 +15,10 @@ export function DraftBoard() {
 
   const handleCompleteDraft = () => {
     setStep('complete');
+  };
+
+  const handleStartTournament = () => {
+    setStep('tournament');
   };
 
   const handleReset = () => {
@@ -29,7 +34,10 @@ export function DraftBoard() {
         <DraftStep onReset={handleReset} onCompleteDraft={handleCompleteDraft} />
       )}
       {step === 'complete' && (
-        <CompleteStep onReset={handleReset} />
+        <CompleteStep onReset={handleReset} onStartTournament={handleStartTournament} />
+      )}
+      {step === 'tournament' && (
+        <TournamentStep onReset={handleReset} />
       )}
     </div>
   );

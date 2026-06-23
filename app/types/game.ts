@@ -30,3 +30,39 @@ export interface SquadSlot {
   position: PlayerPosition;
   player: Player | null;
 }
+export type TeamTier = 'very_good' | 'good' | 'medium' | 'bad';
+
+export interface OpponentTeam {
+  id: string;
+  name: string;
+  tier: TeamTier;
+  country: string;
+  attackOverall: number;
+  defenseOverall: number;
+  teamChemistry: number;
+  logoColor: string;
+}
+
+export interface GroupStandingRow {
+  teamId: string;
+  name: string;
+  logoColor: string;
+  country: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+}
+
+export interface KnockoutMatch {
+  id: string;
+  teamA: OpponentTeam;
+  teamB: OpponentTeam;
+  winnerId?: string | null;
+  scores?: { home: number; away: number }[];
+}
+
