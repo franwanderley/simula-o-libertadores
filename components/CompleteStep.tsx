@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from 'react';
-import { Trophy, Shuffle, RefreshCw } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import { useGameStore } from '../hooks/useGameStore';
 import { OpponentTeam } from '../app/types/game';
 
@@ -33,10 +33,12 @@ export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) 
   }, [store.attackOverall, store.defenseOverall, store.teamChemistry]);
 
   const initializePots = useGameStore(state => state.initializePots);
+  const runGroupDraw = useGameStore(state => state.runGroupDraw);
 
   useEffect(() => {
     initializePots(userTeam);
-  }, [initializePots, userTeam]);
+    runGroupDraw();
+  }, [initializePots, runGroupDraw, userTeam]);
 
   const handleReset = () => {
     store.resetSquad();
@@ -141,50 +143,12 @@ export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) 
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl">
-        {!store.isDrawCompleted ? (
-          <div>
-            <div className="mb-6">
-              <h3 className="text-lg font-extrabold text-white">Potes do Sorteio</h3>
-              <p className="text-slate-400 text-xs mt-1">
-                Os 32 times foram divididos em 4 potes com base na classificação de força geral.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              {store.pots && Object.entries(store.pots).map(([key, potTeams], idx) => (
-                <div key={key} className="bg-slate-800/30 border border-slate-800 rounded-2xl p-4">
-                  <h4 className="font-extrabold text-xs text-amber-500 uppercase tracking-widest border-b border-slate-800 pb-2 mb-3">
-                    Pote {idx + 1}
-                  </h4>
-                  <div className="flex flex-col gap-2">
-                    {potTeams.map(t => {
-                      const isUser = t.id === 'user_team';
-                      const avg = Math.round((t.attackOverall + t.defenseOverall) / 2);
-                      return (
-                        <div
-                          key={t.id}
-                          className={`flex items-center justify-between p-1.5 rounded-lg border text-[11px] ${
-                            isUser
-                              ? 'bg-amber-500/10 border-amber-500/40 text-amber-400 font-bold'
-                              : 'bg-slate-800/40 border-slate-800/50 text-slate-300'
-                          }`}
-                        >
-                          <span className="truncate max-w-32">{t.name}</span>
-                          {isUser && <span className="opacity-85 font-mono">{avg} OVR</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => store.runGroupDraw()}
-              className="w-full py-4 bg-linear-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-950 font-black tracking-wider uppercase rounded-xl hover:shadow-xl active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Shuffle className="w-5 h-5" /> Sorteio dos Grupos
-            </button>
+        {!store.groups ? (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+            <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4" />
+            <span className="text-xs font-black uppercase text-slate-500 tracking-wider">
+              Sorteando Grupos...
+            </span>
           </div>
         ) : (
           <div>
@@ -209,7 +173,7 @@ export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) 
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {store.groups && Object.entries(store.groups).map(([gKey, groupTeams]) => {
+              {Object.entries(store.groups).map(([gKey, groupTeams]) => {
                 const hasUser = groupTeams.some(t => t.id === 'user_team');
                 return (
                   <div
@@ -255,12 +219,6 @@ export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) 
               })}
             </div>
 
-            <button
-              onClick={() => store.resetDraw()}
-              className="mt-8 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 mx-auto cursor-pointer text-xs"
-            >
-              <RefreshCw className="w-4 h-4" /> Refazer Sorteio
-            </button>
           </div>
         )}
       </div>
