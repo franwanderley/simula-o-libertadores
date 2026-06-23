@@ -8,7 +8,7 @@ interface SetupStepProps {
   onStartDraft: () => void;
 }
 
-const FORMATIONS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '5-3-2', '4-2-3-1'];
+const FORMATIONS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '5-3-2', '4-2-3-1', '3-4-3', '4-5-1', '4-3-2-1', '5-4-1'];
 const PLAY_STYLES: { id: PlayStyle; label: string; desc: string; icon: typeof Flame }[] = [
   { id: 'attack', label: 'Ofensivo', desc: 'Foco no ataque (+3 Atk)', icon: Flame },
   { id: 'balanced', label: 'Equilibrado', desc: 'Estilo equilibrado', icon: Sparkles },

@@ -44,6 +44,8 @@ const SLOT_POSITIONS: Record<string, { top: string; left: string }> = {
   lw: { top: '15%', left: '20%' },
   st: { top: '12%', left: '50%' },
   rw: { top: '15%', left: '80%' },
+  lf: { top: '23%', left: '38%' },
+  rf: { top: '23%', left: '62%' },
 };
 
 const playStyleLabels: Record<PlayStyle, string> = {

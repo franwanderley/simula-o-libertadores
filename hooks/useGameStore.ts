@@ -105,8 +105,8 @@ function calculateChemistry(squad: SquadSlot[], formation: Formation, playStyle:
   }
   score += Math.min(35, nationScore);
   if (
-    (formation === '4-3-3' && playStyle === 'attack') ||
-    (formation === '5-3-2' && playStyle === 'defense') ||
+    ((formation === '4-3-3' || formation === '3-4-3' || formation === '4-3-2-1') && playStyle === 'attack') ||
+    ((formation === '5-3-2' || formation === '4-5-1' || formation === '5-4-1') && playStyle === 'defense') ||
     (formation === '4-4-2' && playStyle === 'balanced')
   ) {
     score += 5;
