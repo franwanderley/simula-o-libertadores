@@ -1,20 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Trophy, Zap, Shuffle, RefreshCw, ArrowRight, CheckCircle2, Lock, X } from 'lucide-react';
+import { Trophy, Zap, Shuffle, RefreshCw, ArrowRight, CheckCircle2, Lock, X, Share2 } from 'lucide-react';
 import { useGameStore } from '../hooks/useGameStore';
 import { OpponentTeam, KnockoutMatch } from '../app/types/game';
 import { MatchEvent, MatchResult } from '../utils/matchSimulator';
-
-const getMatchRound = (i: number, j: number): number => {
-  if ((i === 0 && j === 1) || (i === 2 && j === 3)) return 1;
-  if ((i === 0 && j === 2) || (i === 1 && j === 3)) return 2;
-  if ((i === 0 && j === 3) || (i === 1 && j === 2)) return 3;
-  if ((i === 1 && j === 0) || (i === 3 && j === 2)) return 4;
-  if ((i === 2 && j === 0) || (i === 3 && j === 1)) return 5;
-  if ((i === 3 && j === 0) || (i === 2 && j === 1)) return 6;
-  return 1;
-};
+import { WhistleIcon } from '../assets/icons/WhistleIcon';
+import { GroupMatchesList } from './GroupMatchesList';
+import { checkUserElimination } from '../utils/tournament';
 
 const getGroupRoundMatches = (groupTeams: OpponentTeam[], round: number) => {
   if (groupTeams.length < 4) return [];
@@ -59,7 +52,7 @@ interface TournamentStepProps {
   onReset: () => void;
 }
 
-export function TournamentStep({ onReset }: TournamentStepProps) {
+export function TournamentStep(props: Readonly<TournamentStepProps>) {
   const store = useGameStore();
   const feedRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<'groups' | 'draw' | 'bracket'>('groups');
@@ -82,6 +75,34 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
     title: string;
     onComplete: () => void;
   } | null>(null);
+
+  const [copied, setCopied] = useState(false);
+
+  const isUserEliminated = checkUserElimination({
+    isGroupSimulated: store.isGroupSimulated,
+    groups: store.groups,
+    groupStandings: store.groupStandings,
+    isKnockoutDrawCompleted: store.isKnockoutDrawCompleted,
+    knockoutMatches: store.knockoutMatches,
+    qfMatches: store.qfMatches,
+    sfMatches: store.sfMatches,
+    fMatch: store.fMatch
+  });
+
+  const handleShareCampaign = () => {
+    if (!isUserEliminated) return;
+    const squadStr = store.squad
+      .map(s => s.player ? `${s.label}: ${s.player.name} (${s.player.overall} OVR)` : '')
+      .filter(Boolean)
+      .join('\n');
+    
+    const text = `🏆 6 a 3 - Simulador da Libertadores 🏆\n\nMinha Campanha:\nFase de Eliminação: ${isUserEliminated.eliminatedAt}\nAtaque: ${store.attackOverall} | Defesa: ${store.defenseOverall} | Química: ${store.teamChemistry}\nFormação: ${store.formation}\n\nEscalação:\n${squadStr}\n\nMonte seu time e simule em: ${typeof globalThis === 'undefined' ? '' : globalThis.location.origin}`;
+    
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const getLiveScore = (events: MatchEvent[], currentMinute: number, teamAName: string, teamBName: string) => {
     let scoreA = 0;
@@ -107,7 +128,7 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
   }[]) => {
     let maxMin = 90;
     for (const m of matches) {
-      if (m.result && m.result.events) {
+      if (m?.result?.events) {
         for (const ev of m.result.events) {
           if (ev.minute > maxMin) {
             maxMin = ev.minute;
@@ -241,9 +262,19 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
     }
   }, [initializePots, runGroupDraw, attackOverall, defenseOverall, teamChemistry, isDrawCompleted]);
 
-  const handleSimulateGroups = () => {
-    store.simulateGroupStage();
-  };
+  useEffect(() => {
+    if (isDrawCompleted && store.groupStandings === null) {
+      store.simulateGroupStage();
+    }
+  }, [isDrawCompleted, store.groupStandings, store.simulateGroupStage, store]);
+
+  if (store.groupStandings === null) {
+    return (
+      <div className="w-full flex items-center justify-center py-20">
+        <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const getRoundMatches = (round: number) => {
     if (!store.groups) return [];
@@ -287,14 +318,18 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
   };
 
   const handleSkipRound = () => {
+    const round = store.currentGroupRound + 1;
+    const roundMatches = getRoundMatches(round);
+    const userMatch = roundMatches.find(
+      m => m.teamA.id === 'user_team' || m.teamB.id === 'user_team'
+    );
     store.advanceGroupRound();
-  };
-
-  const handleSkipAllGroups = () => {
-    let r = store.currentGroupRound;
-    while (r < 6) {
-      store.advanceGroupRound();
-      r++;
+    if (userMatch) {
+      setSelectedMatch({
+        id: userMatch.id,
+        teamA: userMatch.teamA,
+        teamB: userMatch.teamB
+      });
     }
   };
 
@@ -353,7 +388,7 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
 
   const handleResetTournament = () => {
     store.resetDraw();
-    onReset();
+    props.onReset();
   };
 
   const groupKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -382,122 +417,181 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
         </div>
       </div>
 
-      <div className="flex bg-slate-900 border border-slate-800 p-1.5 rounded-2xl max-w-lg mx-auto w-full">
-        <button
-          onClick={() => setActiveTab('groups')}
-          className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer ${
-            activeTab === 'groups' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          Fase de Grupos
-        </button>
-        <button
-          onClick={() => {
-            if (store.isGroupSimulated) setActiveTab('draw');
-          }}
-          disabled={!store.isGroupSimulated}
-          className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
-            !store.isGroupSimulated ? 'opacity-40 cursor-not-allowed text-slate-500' : 'cursor-pointer'
-          } ${activeTab === 'draw' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'}`}
-        >
-          {!store.isGroupSimulated && <Lock className="w-3.5 h-3.5" />}
-          Sorteio Oitavas
-        </button>
-        <button
-          onClick={() => {
-            if (store.isKnockoutDrawCompleted) setActiveTab('bracket');
-          }}
-          disabled={!store.isKnockoutDrawCompleted}
-          className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
-            !store.isKnockoutDrawCompleted ? 'opacity-40 cursor-not-allowed text-slate-500' : 'cursor-pointer'
-          } ${activeTab === 'bracket' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'}`}
-        >
-          {!store.isKnockoutDrawCompleted && <Lock className="w-3.5 h-3.5" />}
-          Chaveamento
-        </button>
-      </div>
+      {isUserEliminated ? (
+        <div className="max-w-xl mx-auto w-full animate-in fade-in duration-300">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col gap-6">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl" />
+            
+            <div className="text-center flex flex-col items-center">
+              <span className="text-[10px] bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full text-red-400 font-extrabold uppercase tracking-widest">
+                Fim da Linha!
+              </span>
+              <h3 className="text-2xl font-black text-white uppercase tracking-tight mt-3">
+                Eliminado na {isUserEliminated.eliminatedAt}
+              </h3>
+              <p className="text-slate-400 text-xs mt-1">
+                Sua equipe lutou bravamente, mas a jornada na Libertadores chegou ao fim.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-2xl text-center">
+                <span className="text-[9px] text-slate-500 font-extrabold uppercase">Ataque</span>
+                <div className="text-lg font-black text-red-500 mt-1">{store.attackOverall}</div>
+              </div>
+              <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-2xl text-center">
+                <span className="text-[9px] text-slate-500 font-extrabold uppercase">Defesa</span>
+                <div className="text-lg font-black text-blue-500 mt-1">{store.defenseOverall}</div>
+              </div>
+              <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-2xl text-center">
+                <span className="text-[9px] text-slate-500 font-extrabold uppercase">Química</span>
+                <div className="text-lg font-black text-emerald-500 mt-1">{store.teamChemistry}</div>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-3">
+                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
+                  Elenco Final ({store.formation})
+                </span>
+                <span className="text-[10px] text-amber-500 font-black font-mono">
+                  OVR Médio: {Math.round((store.attackOverall + store.defenseOverall) / 2)}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
+                {store.squad.map(s => {
+                  if (!s.player) return null;
+                  return (
+                    <div key={s.id} className="flex items-center justify-between p-2 bg-slate-900/50 rounded-xl border border-slate-850 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] font-black uppercase bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
+                          {s.label}
+                        </span>
+                        <span className="font-bold text-slate-200">{s.player.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-slate-500">{s.player.club}</span>
+                        <span className="text-xs font-black text-amber-400">{s.player.overall}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleShareCampaign}
+                className="flex-1 py-3 bg-linear-to-r from-amber-400 to-yellow-500 text-slate-950 font-black tracking-wider uppercase rounded-xl hover:shadow-xl active:scale-95 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center gap-1.5"
+              >
+                <Share2 className="w-4 h-4 shrink-0" />
+                {copied ? 'Copiado!' : 'Compartilhar Campanha'}
+              </button>
+              <button
+                onClick={handleResetTournament}
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold uppercase rounded-xl active:scale-95 transition-all duration-200 cursor-pointer text-xs"
+              >
+                Jogar Novamente
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex bg-slate-900 border border-slate-800 p-1.5 rounded-2xl max-w-lg mx-auto w-full">
+            <button
+              onClick={() => setActiveTab('groups')}
+              className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer ${
+                activeTab === 'groups' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Fase de Grupos
+            </button>
+            <button
+              onClick={() => {
+                if (store.isGroupSimulated) setActiveTab('draw');
+              }}
+              disabled={!store.isGroupSimulated}
+              className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
+                store.isGroupSimulated ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed text-slate-500'
+              } ${activeTab === 'draw' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'}`}
+            >
+              {!store.isGroupSimulated && <Lock className="w-3.5 h-3.5" />}
+              Sorteio Oitavas
+            </button>
+            <button
+              onClick={() => {
+                if (store.isKnockoutDrawCompleted) setActiveTab('bracket');
+              }}
+              disabled={!store.isKnockoutDrawCompleted}
+              className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
+                store.isKnockoutDrawCompleted ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed text-slate-500'
+              } ${activeTab === 'bracket' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'}`}
+            >
+              {!store.isKnockoutDrawCompleted && <Lock className="w-3.5 h-3.5" />}
+              Chaveamento
+            </button>
+          </div>
 
       {activeTab === 'groups' && (
         <div className="flex flex-col gap-6">
-          {store.groupStandings === null ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center max-w-2xl mx-auto w-full relative overflow-hidden">
-              <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/15 rounded-full blur-2xl" />
-              <Zap className="w-12 h-12 text-amber-400 mx-auto mb-4 animate-pulse" />
-              <h3 className="text-xl font-black text-white uppercase tracking-tight">Fase de Grupos Definida!</h3>
-              <p className="text-slate-400 text-sm mt-2 max-w-md mx-auto leading-relaxed">
-                Os grupos foram sorteados e os adversários estão definidos. Clique abaixo para iniciar a fase de grupos e jogar rodada por rodada.
-              </p>
-              <button
-                onClick={handleSimulateGroups}
-                className="mt-6 px-8 py-4 bg-linear-to-r from-amber-400 to-yellow-500 text-slate-950 font-black tracking-wider uppercase rounded-xl hover:shadow-xl hover:shadow-amber-500/10 active:scale-95 transition-all duration-200 cursor-pointer text-sm"
-              >
-                Iniciar Fase de Grupos
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-6">
-              {!store.isGroupSimulated ? (
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row justify-between items-center gap-6 max-w-4xl mx-auto w-full relative overflow-hidden animate-in fade-in duration-300">
-                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl animate-pulse" />
-                  <div className="flex-1">
-                    <span className="text-[10px] bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg text-amber-500 font-extrabold uppercase tracking-wider">
-                      Rodada {store.currentGroupRound + 1} de 6
-                    </span>
-                    {(() => {
-                      const roundMatches = getRoundMatches(store.currentGroupRound + 1);
-                      const userMatch = roundMatches.find(
-                        m => m.teamA.id === 'user_team' || m.teamB.id === 'user_team'
-                      );
-                      if (!userMatch) return null;
-                      const opponent = userMatch.teamA.id === 'user_team' ? userMatch.teamB : userMatch.teamA;
-                      const isHome = userMatch.teamA.id === 'user_team';
-                      return (
-                        <div className="mt-3">
-                          <h3 className="text-lg font-black text-white uppercase tracking-tight">
-                            Proximo Jogo: {isHome ? 'Seu Time' : opponent.name} vs {isHome ? opponent.name : 'Seu Time'}
-                          </h3>
-                          <p className="text-slate-400 text-xs mt-1">
-                            Fase de Grupos da Copa Libertadores. Jogue e assista o confronto ao vivo!
-                          </p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
-                    <button
-                      onClick={handlePlayRound}
-                      className="px-6 py-3.5 bg-linear-to-r from-amber-400 to-yellow-500 text-slate-950 font-black tracking-wider uppercase rounded-xl hover:shadow-xl hover:shadow-amber-500/10 active:scale-95 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center gap-1.5 animate-bounce-slow"
-                    >
-                      <Zap className="w-4 h-4 text-slate-950 shrink-0 animate-pulse" /> Jogar Partida (1 Min)
-                    </button>
-                    <button
-                      onClick={handleSkipRound}
-                      className="px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold uppercase rounded-xl active:scale-95 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center gap-1"
-                    >
-                      Pular Rodada
-                    </button>
-                    <button
-                      onClick={handleSkipAllGroups}
-                      className="px-4 py-3.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-red-400 font-bold uppercase rounded-xl active:scale-95 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center gap-1"
-                    >
-                      Simular Tudo
-                    </button>
-                  </div>
+          <div className="flex flex-col gap-6">
+            {!store.isGroupSimulated ? (
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row justify-between items-center gap-6 max-w-4xl mx-auto w-full relative overflow-hidden animate-in fade-in duration-300">
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl animate-pulse" />
+                <div className="flex-1">
+                  <span className="text-[10px] bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg text-amber-500 font-extrabold uppercase tracking-wider">
+                    Rodada {store.currentGroupRound + 1} de 6
+                  </span>
+                  {(() => {
+                    const roundMatches = getRoundMatches(store.currentGroupRound + 1);
+                    const userMatch = roundMatches.find(
+                      m => m.teamA.id === 'user_team' || m.teamB.id === 'user_team'
+                    );
+                    if (!userMatch) return null;
+                    const opponent = userMatch.teamA.id === 'user_team' ? userMatch.teamB : userMatch.teamA;
+                    const isHome = userMatch.teamA.id === 'user_team';
+                    return (
+                      <div className="mt-3">
+                        <h3 className="text-lg font-black text-white uppercase tracking-tight">
+                          Proximo Jogo: {isHome ? 'Seu Time' : opponent.name} vs {isHome ? opponent.name : 'Seu Time'}
+                        </h3>
+                        <p className="text-slate-400 text-xs mt-1">
+                          Fase de Grupos da Copa Libertadores. Jogue e assista o confronto ao vivo!
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
-              ) : (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 max-w-4xl mx-auto w-full animate-in fade-in duration-300">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                    <span className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Fase de Grupos Concluida</span>
-                  </div>
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
                   <button
-                    onClick={() => setActiveTab('draw')}
-                    className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer active:scale-95 flex items-center gap-1.5"
+                    onClick={handlePlayRound}
+                    className="px-6 py-3.5 bg-linear-to-r from-amber-400 to-yellow-500 text-slate-950 font-black tracking-wider uppercase rounded-xl hover:shadow-xl hover:shadow-amber-500/10 active:scale-95 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center gap-1.5 animate-bounce-slow"
                   >
-                    Ir para Sorteio do Mata-Mata <ArrowRight className="w-4 h-4" />
+                    <Zap className="w-4 h-4 text-slate-950 shrink-0 animate-pulse" /> Jogar Partida (1 Min)
+                  </button>
+                  <button
+                    onClick={handleSkipRound}
+                    className="px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold uppercase rounded-xl active:scale-95 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center gap-1"
+                  >
+                    Pular Rodada
                   </button>
                 </div>
-              )}
+              </div>
+            ) : (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 max-w-4xl mx-auto w-full animate-in fade-in duration-300">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                  <span className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Fase de Grupos Concluida</span>
+                </div>
+                <button
+                  onClick={() => setActiveTab('draw')}
+                  className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer active:scale-95 flex items-center gap-1.5"
+                >
+                  Ir para Sorteio do Mata-Mata <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {groupKeys.map(gKey => {
@@ -556,73 +650,20 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                       </button>
                       {expandedGroupMatches === gKey && (
                         <div className="mt-4 border-t border-slate-800 pt-3 flex flex-col gap-2 max-h-60 overflow-y-auto pr-1 text-[10px]">
-                          {(() => {
-                            const groupTeams = store.groups?.[gKey] || [];
-                            const matchesList: { teamA: OpponentTeam; teamB: OpponentTeam; resultId: string }[] = [];
-                            for (let i = 0; i < groupTeams.length; i++) {
-                              for (let j = 0; j < groupTeams.length; j++) {
-                                if (i === j) continue;
-                                matchesList.push({
-                                  teamA: groupTeams[i],
-                                  teamB: groupTeams[j],
-                                  resultId: `group_${gKey}_${groupTeams[i].id}_${groupTeams[j].id}`
-                                });
-                              }
-                            }
-                            return matchesList.map((match, mIdx) => {
-                              const result = store.matchResults[match.resultId];
-                              const i = groupTeams.findIndex(t => t.id === match.teamA.id);
-                              const j = groupTeams.findIndex(t => t.id === match.teamB.id);
-                              const matchRound = getMatchRound(i, j);
-                              const isPlayed = matchRound <= store.currentGroupRound;
-                              return (
-                                <button
-                                  key={mIdx}
-                                  onClick={() => {
-                                    if (isPlayed) {
-                                      setSelectedMatch({
-                                        id: match.resultId,
-                                        teamA: match.teamA,
-                                        teamB: match.teamB
-                                      });
-                                    }
-                                  }}
-                                  disabled={!isPlayed}
-                                  className={`w-full text-left p-2 border rounded-lg flex items-center justify-between transition ${
-                                    isPlayed
-                                      ? 'bg-slate-850 hover:bg-slate-800 border-slate-800 cursor-pointer'
-                                      : 'bg-slate-900 border-slate-950 opacity-40 cursor-not-allowed'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-1 min-w-0 max-w-[42%]">
-                                    <span className="truncate text-slate-300">{match.teamA.name}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 shrink-0 px-1 font-mono font-black text-white">
-                                    {isPlayed ? (
-                                      <>
-                                        <span>{result?.goalsA ?? 0}</span>
-                                        <span className="text-slate-600 font-normal">x</span>
-                                        <span>{result?.goalsB ?? 0}</span>
-                                      </>
-                                    ) : (
-                                      <span className="text-slate-500 font-sans font-bold text-[8px] uppercase tracking-wider">R{matchRound}</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1 min-w-0 max-w-[42%] justify-end text-right">
-                                    <span className="truncate text-slate-300">{match.teamB.name}</span>
-                                  </div>
-                                </button>
-                              );
-                            });
-                          })()}
+                          <GroupMatchesList
+                            gKey={gKey}
+                            groupTeams={store.groups?.[gKey] || []}
+                            matchResults={store.matchResults}
+                            currentGroupRound={store.currentGroupRound}
+                            onSelectMatch={setSelectedMatch}
+                          />
                         </div>
                       )}
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -761,7 +802,12 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                 Simule as fases eliminatórias e clique nas partidas concluídas para ver estatísticas e marcadores.
               </p>
             </div>
-            {store.knockoutRound !== 'ended' ? (
+            {store.knockoutRound === 'ended' ? (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 px-4 py-2.5 rounded-xl flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider shrink-0">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                Campeão: {store.champion?.name}
+              </div>
+            ) : (
               <button
                 onClick={handleSimulateKnockout}
                 className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0"
@@ -772,11 +818,6 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                 {store.knockoutRound === 'SF' && 'Simular Semifinais'}
                 {store.knockoutRound === 'F' && 'Simular Grande Final'}
               </button>
-            ) : (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 px-4 py-2.5 rounded-xl flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider shrink-0">
-                <Trophy className="w-5 h-5 text-yellow-500" />
-                Campeão: {store.champion?.name}
-              </div>
             )}
           </div>
 
@@ -853,6 +894,7 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
           </div>
         </div>
       )}
+      </>)}
 
       {selectedMatch && (() => {
         const result = store.matchResults[selectedMatch.id];
@@ -931,8 +973,8 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                           }`}>
                             {ev.type === 'goal' && <span className="text-emerald-400 shrink-0">⚽</span>}
                             {ev.type === 'shot' && <span className="text-blue-400 shrink-0">🎯</span>}
-                            {ev.type === 'foul' && <span className="text-yellow-400 shrink-0">🟨</span>}
-                            <span className="break-words">{ev.description}</span>
+                            {ev.type === 'foul' && <WhistleIcon />}
+                            <span className="wrap-break-word">{ev.description}</span>
                           </div>
                         </div>
                       );
@@ -1008,6 +1050,13 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
           mainMatch.teamB.name
         );
 
+        const currentMinuteEvents = mainMatch.result.events.filter(
+          e => e.minute === liveSimulation.currentMinute
+        );
+        const goalEvent = currentMinuteEvents.find(e => e.type === 'goal');
+        const isGoalAJustScored = goalEvent?.teamName === mainMatch.teamA.name;
+        const isGoalBJustScored = goalEvent?.teamName === mainMatch.teamB.name;
+
         const finalPossA = mainMatch.result.stats.possessionA;
         const livePossA = liveSimulation.currentMinute === 0
           ? 50
@@ -1068,17 +1117,22 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                         <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
                           {mainMatch.teamA.name}
                         </span>
-                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono mt-1">
-                          OVR {Math.round((mainMatch.teamA.attackOverall + mainMatch.teamA.defenseOverall) / 2)}
+                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase mt-1">
+                          {mainMatch.teamA.country}
                         </span>
                       </div>
                       
-                      <div className="flex flex-col items-center justify-center shrink-0 px-4">
-                        <div className="text-5xl font-black font-mono text-white tracking-tight flex items-center gap-3">
-                          <span>{scoreA}</span>
+                      <div className="flex flex-col items-center justify-center shrink-0 px-4 relative">
+                        <div className="text-5xl font-black font-mono tracking-tight flex items-center gap-3">
+                          <span className={`${isGoalAJustScored ? 'text-emerald-400 animate-bounce scale-125' : 'text-white'} transition-all duration-300`}>{scoreA}</span>
                           <span className="text-slate-600 text-xl font-normal">:</span>
-                          <span>{scoreB}</span>
+                          <span className={`${isGoalBJustScored ? 'text-emerald-400 animate-bounce scale-125' : 'text-white'} transition-all duration-300`}>{scoreB}</span>
                         </div>
+                        {goalEvent && (
+                          <div className="absolute -top-6 bg-emerald-500 border border-emerald-400 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest animate-bounce shadow-lg shadow-emerald-500/20">
+                            GOL!
+                          </div>
+                        )}
                         <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-extrabold uppercase mt-2 tracking-wider">
                           Ao Vivo
                         </span>
@@ -1091,8 +1145,8 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                         <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
                           {mainMatch.teamB.name}
                         </span>
-                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono mt-1">
-                          OVR {Math.round((mainMatch.teamB.attackOverall + mainMatch.teamB.defenseOverall) / 2)}
+                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase mt-1">
+                          {mainMatch.teamB.country}
                         </span>
                       </div>
                       
@@ -1145,7 +1199,7 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                   
                 </div>
                 
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-[400px]">
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-100">
                   <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center border-b border-slate-800 pb-2 mb-3">
                     Lances do Jogo
                   </span>
@@ -1172,8 +1226,8 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                             }`}>
                               {ev.type === 'goal' && <span className="text-emerald-400 shrink-0">⚽</span>}
                               {ev.type === 'shot' && <span className="text-blue-400 shrink-0">🎯</span>}
-                              {ev.type === 'foul' && <span className="text-yellow-400 shrink-0">🟨</span>}
-                              <span className="break-words">{ev.description}</span>
+                              {ev.type === 'foul' && <WhistleIcon />}
+                              <span className="wrap-break-word">{ev.description}</span>
                             </div>
                           </div>
                         );
@@ -1204,15 +1258,33 @@ export function TournamentStep({ onReset }: TournamentStepProps) {
                       const hasJustScored = m.result.events.some(
                         e => e.type === 'goal' && e.minute === liveSimulation.currentMinute
                       );
+                      const matchGroupKey = m.id.split('_')[1];
+                      let userGroupKey = '';
+                      if (store.groups) {
+                        for (const [gKey, teams] of Object.entries(store.groups)) {
+                          if (teams.some(t => t.id === 'user_team')) {
+                            userGroupKey = gKey;
+                            break;
+                          }
+                        }
+                      }
+                      const isSameGroup = matchGroupKey === userGroupKey;
                       return (
                         <div
                           key={m.id || idx}
-                          className={`p-2 bg-slate-900 border rounded-xl flex flex-col gap-0.5 items-center justify-center transition-all duration-300 ${
+                          className={`p-2 bg-slate-900 border rounded-xl flex flex-col gap-0.5 items-center justify-center transition-all duration-300 relative ${
                             hasJustScored
                               ? 'bg-emerald-950/40 border-emerald-500 scale-105 animate-pulse'
+                              : isSameGroup
+                              ? 'bg-amber-950/15 border-amber-500/50 shadow-lg shadow-amber-500/5 scale-105'
                               : 'border-slate-800/60'
                           }`}
                         >
+                          {isSameGroup && (
+                            <span className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 text-[7px] font-black px-1 rounded uppercase tracking-wider">
+                              Grupo {matchGroupKey}
+                            </span>
+                          )}
                           <span className="text-[9px] text-slate-400 font-bold truncate max-w-full">
                             {m.teamA.name.slice(0, 3).toUpperCase()} x {m.teamB.name.slice(0, 3).toUpperCase()}
                           </span>
