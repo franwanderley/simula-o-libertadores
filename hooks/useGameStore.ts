@@ -4,6 +4,7 @@ import { getSlotsForFormation } from '../utils/formations';
 import { canBuyPlayer } from '../utils/pricing';
 import { opponentTeams } from '../utils/teams';
 import { SimTeam, MatchResult, getSimTeamFromOpponent, simulateMatch } from '../utils/matchSimulator';
+import { simularPenaltis } from '../utils/penaltySimulator';
 
 function getMatchRound(i: number, j: number): number {
   if ((i === 0 && j === 1) || (i === 2 && j === 3)) return 1;
@@ -596,20 +597,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       let result = simulateMatch(simTeamA, simTeamB);
       
       if (result.goalsA === result.goalsB) {
-        const rand = Math.random() > 0.5;
-        const pWinnerName = rand ? m.teamA.name : m.teamB.name;
         result = {
           ...result,
-          events: [
-            ...result.events,
-            {
-              minute: 120,
-              type: 'goal',
-              scorer: `[Pênaltis] Decidido nos pênaltis para o ${pWinnerName}`,
-              teamName: pWinnerName,
-              description: `Decidido nos penaltis para o ${pWinnerName}`
-            }
-          ]
+          penalties: simularPenaltis(simTeamA, simTeamB, m.teamA.id, m.teamB.id)
         };
       }
       
@@ -633,9 +623,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         } else if (result.goalsB > result.goalsA) {
           winnerId = m.teamB.id;
         } else {
-          const penEvent = result.events.find(e => e.minute === 120);
-          if (penEvent && penEvent.teamName === m.teamB.name) {
-            winnerId = m.teamB.id;
+          if (result.penalties) {
+            winnerId = result.penalties.winnerId;
+          } else {
+            const penEvent = result.events.find(e => e.minute === 120);
+            if (penEvent && penEvent.teamName === m.teamB.name) {
+              winnerId = m.teamB.id;
+            }
           }
         }
         

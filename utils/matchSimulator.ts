@@ -1,4 +1,5 @@
 import { PlayerPosition } from '../app/types/game';
+import { PenaltyShootoutResult } from './penaltySimulator';
 
 export interface SimPlayer {
   name: string;
@@ -37,6 +38,7 @@ export interface MatchResult {
   goalsB: number;
   events: MatchEvent[];
   stats: MatchStats;
+  penalties?: PenaltyShootoutResult;
 }
 
 const FORMATION_POSITIONS: Record<string, PlayerPosition[]> = {

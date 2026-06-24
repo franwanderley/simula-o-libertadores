@@ -22,30 +22,30 @@ interface DraftStepProps {
 
 const SLOT_POSITIONS: Record<string, { top: string; left: string }> = {
   gk: { top: '85%', left: '50%' },
-  lb: { top: '65%', left: '15%' },
-  lcb: { top: '68%', left: '38%' },
-  cb: { top: '70%', left: '50%' },
-  rcb: { top: '68%', left: '62%' },
-  rb: { top: '65%', left: '85%' },
-  lwb: { top: '63%', left: '12%' },
-  rwb: { top: '63%', left: '88%' },
-  lm: { top: '45%', left: '12%' },
-  ldm: { top: '48%', left: '33%' },
-  cm: { top: '45%', left: '50%' },
-  lcm: { top: '43%', left: '28%' },
-  rcm: { top: '43%', left: '72%' },
-  cam: { top: '35%', left: '50%' },
-  rdm: { top: '48%', left: '67%' },
-  rm: { top: '45%', left: '88%' },
-  lam: { top: '30%', left: '20%' },
-  ram: { top: '30%', left: '80%' },
-  ls: { top: '15%', left: '35%' },
-  rs: { top: '15%', left: '65%' },
-  lw: { top: '15%', left: '20%' },
-  st: { top: '12%', left: '50%' },
-  rw: { top: '15%', left: '80%' },
-  lf: { top: '23%', left: '38%' },
-  rf: { top: '23%', left: '62%' },
+  lb: { top: '66%', left: '8%' },
+  lcb: { top: '70%', left: '29%' },
+  cb: { top: '74%', left: '50%' },
+  rcb: { top: '70%', left: '71%' },
+  rb: { top: '66%', left: '92%' },
+  lwb: { top: '64%', left: '6%' },
+  rwb: { top: '64%', left: '94%' },
+  lm: { top: '45%', left: '6%' },
+  ldm: { top: '50%', left: '27%' },
+  cm: { top: '46%', left: '50%' },
+  lcm: { top: '44%', left: '24%' },
+  rcm: { top: '44%', left: '76%' },
+  cam: { top: '32%', left: '50%' },
+  rdm: { top: '50%', left: '73%' },
+  rm: { top: '45%', left: '94%' },
+  lam: { top: '28%', left: '15%' },
+  ram: { top: '28%', left: '85%' },
+  ls: { top: '14%', left: '28%' },
+  rs: { top: '14%', left: '72%' },
+  lw: { top: '15%', left: '10%' },
+  st: { top: '10%', left: '50%' },
+  rw: { top: '15%', left: '90%' },
+  lf: { top: '22%', left: '28%' },
+  rf: { top: '22%', left: '72%' },
 };
 
 const playStyleLabels: Record<PlayStyle, string> = {
@@ -206,13 +206,13 @@ export function DraftStep({ onReset, onCompleteDraft }: DraftStepProps) {
                     <div className="relative group flex flex-col items-center">
                       <button
                         onClick={() => setActiveSlot(slot)}
-                        className={`w-16 h-20 rounded-lg flex flex-col items-center justify-between p-1.5 shadow-xl border-2 transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 ${playerCardStyles}`}
+                        className={`w-13 h-17 sm:w-16 sm:h-20 rounded-lg flex flex-col items-center justify-between p-1 sm:p-1.5 shadow-xl border-2 transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 ${playerCardStyles}`}
                       >
-                        <span className="text-xs font-black leading-none">{slot.player.overall}</span>
-                        <span className="text-[9px] font-black truncate w-full text-center leading-none">
+                        <span className="text-[10px] sm:text-xs font-black leading-none">{slot.player.overall}</span>
+                        <span className="text-[7px] sm:text-[9px] font-black truncate w-full text-center leading-none">
                           {slot.player.name.split(' ').pop()}
                         </span>
-                        <span className="text-[7px] font-extrabold uppercase leading-none opacity-80">
+                        <span className="text-[5px] sm:text-[7px] font-extrabold uppercase leading-none opacity-80">
                           {slot.label}
                         </span>
                       </button>
@@ -230,14 +230,14 @@ export function DraftStep({ onReset, onCompleteDraft }: DraftStepProps) {
                   ) : (
                     <button
                       onClick={() => setActiveSlot(slot)}
-                      className={`w-14 h-14 rounded-full border-2 border-dashed flex flex-col items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer ${
+                      className={`w-11 h-11 sm:w-14 sm:h-14 rounded-full border-2 border-dashed flex flex-col items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer ${
                         isSlotActive
                           ? 'border-amber-400 bg-amber-400/20 text-amber-300 scale-105 shadow-lg shadow-amber-500/20'
                           : 'border-white/40 bg-black/20 text-white/60 hover:border-white/60 hover:bg-black/30'
                       }`}
                     >
-                      <Plus className="w-4 h-4 mb-0.5" />
-                      <span className="text-[8px] font-extrabold uppercase">{slot.label}</span>
+                      <Plus className="w-3 h-3 sm:w-4 sm:h-4 mb-0.5" />
+                      <span className="text-[6px] sm:text-[8px] font-extrabold uppercase">{slot.label}</span>
                     </button>
                   )}
                 </div>
