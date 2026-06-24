@@ -39,6 +39,8 @@ interface GameStore {
   fMatch: KnockoutMatch | null;
   champion: OpponentTeam | null;
   matchResults: Record<string, MatchResult>;
+  teamName: string;
+  setTeamName: (name: string) => void;
   setFormation: (formation: Formation) => void;
   setPlayStyle: (playStyle: PlayStyle) => void;
   buyPlayer: (player: Player, slotId: string) => boolean;
@@ -51,7 +53,8 @@ interface GameStore {
   simulateGroupStage: () => void;
   runKnockoutDraw: () => void;
   resetKnockoutDraw: () => void;
-  simulateKnockoutRound: () => void;
+  preSimulateKnockoutRoundMatches: () => void;
+  advanceKnockoutRound: () => void;
   advanceGroupRound: () => void;
   updateGroupStandingsForRound: (round: number) => void;
 }
@@ -164,7 +167,7 @@ const DEFAULT_POSITION_NAMES: Record<string, string> = {
 };
 
 const getUserSimTeam = (get: () => GameStore): SimTeam => {
-  const { squad, attackOverall, defenseOverall, teamChemistry, formation, playStyle } = get();
+  const { squad, attackOverall, defenseOverall, teamChemistry, formation, playStyle, teamName } = get();
   const avgOverall = Math.round((attackOverall + defenseOverall) / 2);
   const players = squad.map(slot => ({
     name: slot.player ? slot.player.name : (DEFAULT_POSITION_NAMES[slot.id.toLowerCase()] || slot.label),
@@ -175,7 +178,7 @@ const getUserSimTeam = (get: () => GameStore): SimTeam => {
   if (playStyle === 'attack') tactic = 'Ofensiva';
   else if (playStyle === 'defense') tactic = 'Defensiva';
   return {
-    name: 'Seu Time (Draft)',
+    name: teamName || 'Seu Time (Draft)',
     overall: avgOverall,
     players,
     chemistry: teamChemistry,
@@ -208,6 +211,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   fMatch: null,
   champion: null,
   matchResults: {},
+  teamName: 'Seu Time (Draft)',
+  setTeamName: (name) => set({ teamName: name }),
 
   setFormation: (formation) => {
     const { squad, budget } = get();
@@ -570,38 +575,69 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  simulateKnockoutRound: () => {
+  preSimulateKnockoutRoundMatches: () => {
     const { knockoutRound, knockoutMatches, qfMatches, sfMatches, fMatch, matchResults } = get();
     const results = { ...matchResults };
+
+    let currentMatches: KnockoutMatch[] = [];
+    if (knockoutRound === 'R16' && knockoutMatches) {
+      currentMatches = knockoutMatches;
+    } else if (knockoutRound === 'QF' && qfMatches) {
+      currentMatches = qfMatches;
+    } else if (knockoutRound === 'SF' && sfMatches) {
+      currentMatches = sfMatches;
+    } else if (knockoutRound === 'F' && fMatch) {
+      currentMatches = [fMatch];
+    }
+
+    for (const m of currentMatches) {
+      const simTeamA = m.teamA.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(m.teamA);
+      const simTeamB = m.teamB.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(m.teamB);
+      let result = simulateMatch(simTeamA, simTeamB);
+      
+      if (result.goalsA === result.goalsB) {
+        const rand = Math.random() > 0.5;
+        const pWinnerName = rand ? m.teamA.name : m.teamB.name;
+        result = {
+          ...result,
+          events: [
+            ...result.events,
+            {
+              minute: 120,
+              type: 'goal',
+              scorer: `[Pênaltis] Decidido nos pênaltis para o ${pWinnerName}`,
+              teamName: pWinnerName,
+              description: `Decidido nos penaltis para o ${pWinnerName}`
+            }
+          ]
+        };
+      }
+      
+      results[m.id] = result;
+    }
+
+    set({ matchResults: results });
+  },
+
+  advanceKnockoutRound: () => {
+    const { knockoutRound, knockoutMatches, qfMatches, sfMatches, fMatch, matchResults } = get();
     
-    const simulateMatchList = (matches: KnockoutMatch[]) => {
+    const applyMatchResults = (matches: KnockoutMatch[]): KnockoutMatch[] => {
       return matches.map(m => {
-        const simTeamA = m.teamA.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(m.teamA);
-        const simTeamB = m.teamB.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(m.teamB);
-        let result = simulateMatch(simTeamA, simTeamB);
-        let penWinnerId: string | null = null;
+        const result = matchResults[m.id];
+        if (!result) return m;
         
-        if (result.goalsA === result.goalsB) {
-          const rand = Math.random() > 0.5;
-          penWinnerId = rand ? m.teamA.id : m.teamB.id;
-          const pWinnerName = rand ? m.teamA.name : m.teamB.name;
-          result = {
-            ...result,
-            events: [
-              ...result.events,
-              {
-                minute: 120,
-                type: 'goal',
-                scorer: `[Pênaltis] Decidido nos pênaltis para o ${pWinnerName}`,
-                teamName: pWinnerName,
-                description: `Decidido nos penaltis para o ${pWinnerName}`
-              }
-            ]
-          };
+        let winnerId = m.teamA.id;
+        if (result.goalsA > result.goalsB) {
+          winnerId = m.teamA.id;
+        } else if (result.goalsB > result.goalsA) {
+          winnerId = m.teamB.id;
+        } else {
+          const penEvent = result.events.find(e => e.minute === 120);
+          if (penEvent && penEvent.teamName === m.teamB.name) {
+            winnerId = m.teamB.id;
+          }
         }
-        
-        results[m.id] = result;
-        const winnerId = penWinnerId ? penWinnerId : (result.goalsA > result.goalsB ? m.teamA.id : m.teamB.id);
         
         return {
           ...m,
@@ -610,9 +646,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         };
       });
     };
-    
+
     if (knockoutRound === 'R16' && knockoutMatches) {
-      const simulated = simulateMatchList(knockoutMatches);
+      const simulated = applyMatchResults(knockoutMatches);
       const winners = simulated.map(m => {
         return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
       });
@@ -628,11 +664,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         knockoutMatches: simulated,
         qfMatches: qf,
-        knockoutRound: 'QF',
-        matchResults: results
+        knockoutRound: 'QF'
       });
     } else if (knockoutRound === 'QF' && qfMatches) {
-      const simulated = simulateMatchList(qfMatches);
+      const simulated = applyMatchResults(qfMatches);
       const winners = simulated.map(m => {
         return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
       });
@@ -648,11 +683,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         qfMatches: simulated,
         sfMatches: sf,
-        knockoutRound: 'SF',
-        matchResults: results
+        knockoutRound: 'SF'
       });
     } else if (knockoutRound === 'SF' && sfMatches) {
-      const simulated = simulateMatchList(sfMatches);
+      const simulated = applyMatchResults(sfMatches);
       const winners = simulated.map(m => {
         return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
       });
@@ -665,17 +699,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         sfMatches: simulated,
         fMatch: f,
-        knockoutRound: 'F',
-        matchResults: results
+        knockoutRound: 'F'
       });
     } else if (knockoutRound === 'F' && fMatch) {
-      const simulated = simulateMatchList([fMatch])[0];
+      const simulated = applyMatchResults([fMatch])[0];
       const champion = simulated.winnerId === simulated.teamA.id ? simulated.teamA : simulated.teamB;
       set({
         fMatch: simulated,
         champion,
-        knockoutRound: 'ended',
-        matchResults: results
+        knockoutRound: 'ended'
       });
     }
   },

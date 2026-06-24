@@ -33,6 +33,19 @@ export function SetupStep({ onStartDraft }: SetupStepProps) {
         </p>
       </div>
       <div className="mb-6">
+        <label className="block text-slate-300 font-bold text-sm mb-2" htmlFor="team-name-input">
+          Nome do seu Time
+        </label>
+        <input
+          id="team-name-input"
+          type="text"
+          value={store.teamName}
+          onChange={(e) => store.setTeamName(e.target.value)}
+          placeholder="Ex: Flamengo, Boca Juniors..."
+          className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all duration-200"
+        />
+      </div>
+      <div className="mb-6">
         <h3 className="block text-slate-300 font-bold text-sm mb-3">
           Selecione a Formação Tática
         </h3>

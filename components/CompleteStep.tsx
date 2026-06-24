@@ -22,7 +22,7 @@ export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) 
 
     return {
       id: 'user_team',
-      name: 'Seu Time (Draft)',
+      name: store.teamName,
       tier: userTier,
       country: 'Brasil',
       attackOverall: store.attackOverall,
@@ -30,7 +30,7 @@ export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) 
       teamChemistry: store.teamChemistry,
       logoColor: 'bg-amber-500'
     };
-  }, [store.attackOverall, store.defenseOverall, store.teamChemistry]);
+  }, [store.attackOverall, store.defenseOverall, store.teamChemistry, store.teamName]);
 
   const initializePots = useGameStore(state => state.initializePots);
   const runGroupDraw = useGameStore(state => state.runGroupDraw);

@@ -9,6 +9,34 @@ import { WhistleIcon } from '../assets/icons/WhistleIcon';
 import { GroupMatchesList } from './GroupMatchesList';
 import { checkUserElimination } from '../utils/tournament';
 
+const SLOT_POSITIONS: Record<string, { top: string; left: string }> = {
+  gk: { top: '85%', left: '50%' },
+  lb: { top: '65%', left: '15%' },
+  lcb: { top: '68%', left: '38%' },
+  cb: { top: '70%', left: '50%' },
+  rcb: { top: '68%', left: '62%' },
+  rb: { top: '65%', left: '85%' },
+  lwb: { top: '63%', left: '12%' },
+  rwb: { top: '63%', left: '88%' },
+  lm: { top: '45%', left: '12%' },
+  ldm: { top: '48%', left: '33%' },
+  cm: { top: '45%', left: '50%' },
+  lcm: { top: '43%', left: '28%' },
+  rcm: { top: '43%', left: '72%' },
+  cam: { top: '35%', left: '50%' },
+  rdm: { top: '48%', left: '67%' },
+  rm: { top: '45%', left: '88%' },
+  lam: { top: '30%', left: '20%' },
+  ram: { top: '30%', left: '80%' },
+  ls: { top: '15%', left: '35%' },
+  rs: { top: '15%', left: '65%' },
+  lw: { top: '15%', left: '20%' },
+  st: { top: '12%', left: '50%' },
+  rw: { top: '15%', left: '80%' },
+  lf: { top: '23%', left: '38%' },
+  rf: { top: '23%', left: '62%' },
+};
+
 const getGroupRoundMatches = (groupTeams: OpponentTeam[], round: number) => {
   if (groupTeams.length < 4) return [];
   const t = groupTeams;
@@ -56,8 +84,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
   const store = useGameStore();
   const feedRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<'groups' | 'draw' | 'bracket'>('groups');
-  const [revealedCount, setRevealedCount] = useState(0);
-  const [isDrawing, setIsDrawing] = useState(false);
+
   const [selectedMatch, setSelectedMatch] = useState<{
     id: string;
     teamA: OpponentTeam;
@@ -190,6 +217,8 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
     const scoreHome = isCompleted ? m.scores![0].home : null;
     const scoreAway = isCompleted ? m.scores![0].away : null;
     
+    const isUserMatch = m.teamA.id === 'user_team' || m.teamB.id === 'user_team';
+    
     return (
       <button
         onClick={() => {
@@ -201,7 +230,11 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
             });
           }
         }}
-        className={`w-full text-left bg-slate-850/85 border border-slate-800 rounded-xl p-3 relative flex flex-col gap-2 shadow-md transition-all ${
+        className={`w-full text-left bg-slate-850/85 border rounded-xl p-3 relative flex flex-col gap-2 shadow-md transition-all ${
+          isUserMatch
+            ? 'border-amber-500 bg-amber-500/10 shadow-amber-500/10 ring-1 ring-amber-500/20'
+            : 'border-slate-800'
+        } ${
           isCompleted ? 'hover:border-amber-500 hover:bg-slate-800/90 cursor-pointer' : ''
         }`}
       >
@@ -210,7 +243,13 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
             <div className={`w-5 h-5 rounded-full ${m.teamA.logoColor} flex items-center justify-center font-black text-[8px] text-white shrink-0`}>
               {m.teamA.name.slice(0, 2).toUpperCase()}
             </div>
-            <span className={`text-xs font-bold truncate ${isCompleted && m.winnerId !== m.teamA.id ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+            <span className={`text-xs truncate ${
+              m.teamA.id === 'user_team'
+                ? 'text-amber-400 font-extrabold'
+                : isCompleted && m.winnerId !== m.teamA.id
+                ? 'text-slate-500 line-through'
+                : 'text-slate-200 font-bold'
+            }`}>
               {m.teamA.name}
             </span>
           </div>
@@ -221,7 +260,13 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
             <div className={`w-5 h-5 rounded-full ${m.teamB.logoColor} flex items-center justify-center font-black text-[8px] text-white shrink-0`}>
               {m.teamB.name.slice(0, 2).toUpperCase()}
             </div>
-            <span className={`text-xs font-bold truncate ${isCompleted && m.winnerId !== m.teamB.id ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+            <span className={`text-xs truncate ${
+              m.teamB.id === 'user_team'
+                ? 'text-amber-400 font-extrabold'
+                : isCompleted && m.winnerId !== m.teamB.id
+                ? 'text-slate-500 line-through'
+                : 'text-slate-200 font-bold'
+            }`}>
               {m.teamB.name}
             </span>
           </div>
@@ -335,22 +380,24 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
 
   const handleSimulateKnockout = () => {
     const roundBefore = store.knockoutRound;
-    store.simulateKnockoutRound();
+    store.preSimulateKnockoutRoundMatches();
+    
+    const latestState = useGameStore.getState();
     let matchesToSim: KnockoutMatch[] = [];
-    if (roundBefore === 'R16' && store.knockoutMatches) {
-      matchesToSim = store.knockoutMatches;
-    } else if (roundBefore === 'QF' && store.qfMatches) {
-      matchesToSim = store.qfMatches;
-    } else if (roundBefore === 'SF' && store.sfMatches) {
-      matchesToSim = store.sfMatches;
-    } else if (roundBefore === 'F' && store.fMatch) {
-      matchesToSim = [store.fMatch];
+    if (roundBefore === 'R16' && latestState.knockoutMatches) {
+      matchesToSim = latestState.knockoutMatches;
+    } else if (roundBefore === 'QF' && latestState.qfMatches) {
+      matchesToSim = latestState.qfMatches;
+    } else if (roundBefore === 'SF' && latestState.sfMatches) {
+      matchesToSim = latestState.sfMatches;
+    } else if (roundBefore === 'F' && latestState.fMatch) {
+      matchesToSim = [latestState.fMatch];
     }
     const formattedMatches = matchesToSim.map(m => ({
       id: m.id,
       teamA: m.teamA,
       teamB: m.teamB,
-      result: store.matchResults[m.id]
+      result: latestState.matchResults[m.id]
     })).filter(m => m.result !== undefined);
     let title = 'Oitavas de Final - Simulação ao Vivo';
     if (roundBefore === 'QF') {
@@ -365,25 +412,15 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
       currentMinute: 0,
       title,
       onComplete: () => {
+        useGameStore.getState().advanceKnockoutRound();
         setLiveSimulation(null);
       }
     });
   };
 
   const handleStartKnockoutDraw = () => {
-    setIsDrawing(true);
-    setRevealedCount(0);
     store.runKnockoutDraw();
-    
-    let current = 0;
-    const interval = setInterval(() => {
-      current += 1;
-      setRevealedCount(current);
-      if (current >= 8) {
-        clearInterval(interval);
-        setIsDrawing(false);
-      }
-    }, 1200);
+    setActiveTab('bracket');
   };
 
   const handleResetTournament = () => {
@@ -452,30 +489,52 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
             <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-3">
                 <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
-                  Elenco Final ({store.formation})
+                  Elenco Escalado ({store.formation})
                 </span>
                 <span className="text-[10px] text-amber-500 font-black font-mono">
                   OVR Médio: {Math.round((store.attackOverall + store.defenseOverall) / 2)}
                 </span>
               </div>
-              <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
-                {store.squad.map(s => {
-                  if (!s.player) return null;
-                  return (
-                    <div key={s.id} className="flex items-center justify-between p-2 bg-slate-900/50 rounded-xl border border-slate-850 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[8px] font-black uppercase bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
-                          {s.label}
-                        </span>
-                        <span className="font-bold text-slate-200">{s.player.name}</span>
+              <div className="relative w-full aspect-4/5 sm:aspect-4/3 bg-linear-to-b from-emerald-800 to-green-950 rounded-2xl border-2 border-slate-800 shadow-2xl overflow-hidden p-2">
+                <div className="absolute inset-x-0 top-1/2 h-px bg-white/10" />
+                <div className="absolute top-1/2 left-1/2 w-20 h-20 rounded-full border border-white/10 -translate-x-1/2 -translate-y-1/2" />
+                <div className="absolute inset-x-4 top-0 h-12 border-b border-x border-white/10 mx-auto max-w-28" />
+                <div className="absolute inset-x-4 bottom-0 h-12 border-t border-x border-white/10 mx-auto max-w-28" />
+                <div className="absolute inset-0">
+                  {store.squad.map((slot) => {
+                    if (!slot.player) return null;
+                    const pos = SLOT_POSITIONS[slot.id] || { top: '50%', left: '50%' };
+                    let playerCardStyles = 'bg-linear-to-b from-orange-700 to-amber-900 border-orange-600 text-orange-100';
+                    if (slot.player.overall >= 80) {
+                      playerCardStyles = 'bg-linear-to-b from-amber-400 to-yellow-600 border-amber-300 text-amber-950';
+                    } else if (slot.player.overall >= 74) {
+                      playerCardStyles = 'bg-linear-to-b from-zinc-300 to-zinc-500 border-zinc-200 text-zinc-950';
+                    }
+                    return (
+                      <div
+                        key={slot.id}
+                        className="absolute"
+                        style={{
+                          top: pos.top,
+                          left: pos.left,
+                          transform: 'translate(-50%, -50%)',
+                        }}
+                      >
+                        <div className="relative flex flex-col items-center">
+                          <div className={`w-11 h-15 sm:w-14 sm:h-18 rounded-md flex flex-col items-center justify-between p-1.5 shadow-xl border border-white/10 ${playerCardStyles}`}>
+                            <span className="text-[8px] sm:text-[10px] font-black leading-none">{slot.player.overall}</span>
+                            <span className="text-[6px] sm:text-[8px] font-black truncate w-full text-center leading-none">
+                              {slot.player.name.split(' ').pop()}
+                            </span>
+                            <span className="text-[5px] sm:text-[6px] font-extrabold uppercase leading-none opacity-80">
+                              {slot.label}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] text-slate-500">{s.player.club}</span>
-                        <span className="text-xs font-black text-amber-400">{s.player.overall}</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -669,8 +728,8 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
 
       {activeTab === 'draw' && (
         <div className="flex flex-col gap-6">
-          {!store.isKnockoutDrawCompleted && !isDrawing ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto w-full">
+          {!store.isKnockoutDrawCompleted ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto w-full animate-in fade-in">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
                 <h3 className="font-black text-sm text-yellow-400 uppercase tracking-wider border-b border-slate-800 pb-2 mb-4">
                   Pote A (Líderes dos Grupos)
@@ -723,71 +782,15 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
               </button>
             </div>
           ) : (
-            <div className="max-w-xl mx-auto w-full flex flex-col gap-6">
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-base font-black text-white uppercase tracking-tight">Sorteando Confrontos</h3>
-                  <span className="text-xs font-black text-amber-500 uppercase tracking-widest">
-                    {revealedCount} / 8
-                  </span>
-                </div>
-
-                <div className="flex flex-col gap-3 min-h-75">
-                  {store.knockoutMatches?.slice(0, revealedCount).map((m, idx) => {
-                    const avgA = Math.round((m.teamA.attackOverall + m.teamA.defenseOverall) / 2);
-                    const avgB = Math.round((m.teamB.attackOverall + m.teamB.defenseOverall) / 2);
-                    return (
-                      <div
-                        key={m.id}
-                        className="flex items-center justify-between p-3 bg-slate-850 border border-slate-800 rounded-2xl animate-in fade-in slide-in-from-bottom-2 duration-300"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0 w-2/5 justify-end text-right">
-                          {m.teamA.id === 'user_team' && <span className="text-[10px] text-slate-400 font-mono mr-1">({avgA} OVR)</span>}
-                          <span className="text-xs font-bold text-slate-200 truncate">{m.teamA.name}</span>
-                          <div className={`w-7 h-7 rounded-full ${m.teamA.logoColor} flex items-center justify-center font-black text-[10px] text-white shrink-0 ml-2`}>
-                            {m.teamA.name.slice(0, 2).toUpperCase()}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col items-center shrink-0 px-2">
-                          <span className="text-[8px] font-black uppercase bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 mb-1">
-                            Jogo {idx + 1}
-                          </span>
-                          <span className="text-xs font-black text-amber-500 uppercase tracking-widest">VS</span>
-                        </div>
-
-                        <div className="flex items-center gap-2.5 min-w-0 w-2/5 justify-start text-left">
-                          <div className={`w-7 h-7 rounded-full ${m.teamB.logoColor} flex items-center justify-center font-black text-[10px] text-white shrink-0 mr-2`}>
-                            {m.teamB.name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <span className="text-xs font-bold text-slate-200 truncate">{m.teamB.name}</span>
-                          {m.teamB.id === 'user_team' && <span className="text-[10px] text-slate-400 font-mono ml-1">({avgB} OVR)</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {revealedCount < 8 && (
-                    <div className="flex-1 border border-dashed border-slate-800 rounded-2xl flex items-center justify-center p-8 bg-slate-900/50">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
-                        <span className="text-xs font-black uppercase text-slate-500 tracking-wider">
-                          Sorteando confronto {revealedCount + 1}...
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {revealedCount >= 8 && (
-                  <button
-                    onClick={() => setActiveTab('bracket')}
-                    className="mt-6 w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black tracking-wider uppercase rounded-xl hover:shadow-xl active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer text-sm animate-in fade-in"
-                  >
-                    Ver Chaveamento Completo <ArrowRight className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
+            <div className="max-w-xl mx-auto w-full text-center bg-slate-900 border border-slate-800 rounded-3xl p-8 flex flex-col items-center gap-4 animate-in fade-in">
+              <span className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Sorteio Concluído</span>
+              <h3 className="text-xl font-black text-white uppercase tracking-tight">Os confrontos do mata-mata já foram definidos</h3>
+              <button
+                onClick={() => setActiveTab('bracket')}
+                className="mt-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer active:scale-95 flex items-center gap-1.5"
+              >
+                Ir para o Chaveamento <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           )}
         </div>
@@ -1057,6 +1060,21 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
         const isGoalAJustScored = goalEvent?.teamName === mainMatch.teamA.name;
         const isGoalBJustScored = goalEvent?.teamName === mainMatch.teamB.name;
 
+        const isOpponentGoalA = isGoalAJustScored && mainMatch.teamA.id !== 'user_team';
+        const isOpponentGoalB = isGoalBJustScored && mainMatch.teamB.id !== 'user_team';
+        const isOpponentGoalJustScored = isOpponentGoalA || isOpponentGoalB;
+
+        const scoreAColor = isGoalAJustScored
+          ? (isOpponentGoalA ? 'text-red-500 animate-bounce scale-125' : 'text-emerald-400 animate-bounce scale-125')
+          : 'text-white';
+        const scoreBColor = isGoalBJustScored
+          ? (isOpponentGoalB ? 'text-red-500 animate-bounce scale-125' : 'text-emerald-400 animate-bounce scale-125')
+          : 'text-white';
+
+        const goalBadgeBg = isOpponentGoalJustScored
+          ? 'bg-red-600 border-red-500 text-white'
+          : 'bg-emerald-500 border-emerald-400 text-slate-950';
+
         const finalPossA = mainMatch.result.stats.possessionA;
         const livePossA = liveSimulation.currentMinute === 0
           ? 50
@@ -1124,12 +1142,12 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
                       
                       <div className="flex flex-col items-center justify-center shrink-0 px-4 relative">
                         <div className="text-5xl font-black font-mono tracking-tight flex items-center gap-3">
-                          <span className={`${isGoalAJustScored ? 'text-emerald-400 animate-bounce scale-125' : 'text-white'} transition-all duration-300`}>{scoreA}</span>
+                          <span className={`${scoreAColor} transition-all duration-300`}>{scoreA}</span>
                           <span className="text-slate-600 text-xl font-normal">:</span>
-                          <span className={`${isGoalBJustScored ? 'text-emerald-400 animate-bounce scale-125' : 'text-white'} transition-all duration-300`}>{scoreB}</span>
+                          <span className={`${scoreBColor} transition-all duration-300`}>{scoreB}</span>
                         </div>
                         {goalEvent && (
-                          <div className="absolute -top-6 bg-emerald-500 border border-emerald-400 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest animate-bounce shadow-lg shadow-emerald-500/20">
+                          <div className={`absolute -top-6 ${goalBadgeBg} border text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest animate-bounce shadow-lg`}>
                             GOL!
                           </div>
                         )}
