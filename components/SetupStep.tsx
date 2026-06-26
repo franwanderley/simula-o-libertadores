@@ -2,20 +2,20 @@
 
 import { ArrowRight, Flame, Sparkles, Shield } from 'lucide-react';
 import { useGameStore } from '../hooks/useGameStore';
-import { Formation, PlayStyle } from '../app/types/game';
+import { PlayStyle } from '@/types/game';
+import { FORMATIONS } from '../utils/formations';
 
 interface SetupStepProps {
   onStartDraft: () => void;
 }
 
-const FORMATIONS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '5-3-2', '4-2-3-1', '3-4-3', '4-5-1', '4-3-2-1', '5-4-1'];
 const PLAY_STYLES: { id: PlayStyle; label: string; desc: string; icon: typeof Flame }[] = [
   { id: 'attack', label: 'Ofensivo', desc: 'Foco no ataque (+3 Atk)', icon: Flame },
   { id: 'balanced', label: 'Equilibrado', desc: 'Estilo equilibrado', icon: Sparkles },
   { id: 'defense', label: 'Defensivo', desc: 'Foco na defesa (+3 Def)', icon: Shield },
 ];
 
-export function SetupStep({ onStartDraft }: SetupStepProps) {
+export function SetupStep({ onStartDraft }: Readonly<SetupStepProps>) {
   const store = useGameStore();
   const handleStart = () => {
     store.resetSquad();

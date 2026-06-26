@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from 'react';
 import { Trophy } from 'lucide-react';
 import { useGameStore } from '../hooks/useGameStore';
-import { OpponentTeam } from '../app/types/game';
+import { OpponentTeam } from '@/types/game';
 
 interface CompleteStepProps {
   onReset: () => void;

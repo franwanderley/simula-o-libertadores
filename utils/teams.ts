@@ -1,4 +1,4 @@
-import { OpponentTeam } from '../app/types/game';
+import { OpponentTeam } from '@/types/game';
 
 export const opponentTeams: OpponentTeam[] = [
   { id: 'flamengo', name: 'Flamengo', tier: 'very_good', country: 'Brazil', attackOverall: 84, defenseOverall: 83, teamChemistry: 92, logoColor: 'bg-red-600' },

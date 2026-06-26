@@ -42,6 +42,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ### 2.4. Renderização Condicional
 
 - **Prefira ternários ou &&**: Evite múltiplos `if`'s dentro do JSX.
+- **Evite operação ternario duplo**: use design pattern dictionary/map.
 
 ## 3. Hooks
 

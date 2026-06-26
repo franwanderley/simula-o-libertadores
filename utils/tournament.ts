@@ -1,9 +1,4 @@
-import { OpponentTeam, GroupStandingRow, KnockoutMatch } from '../app/types/game';
-
-export interface UserEliminationStatus {
-  eliminatedAt: string;
-  standingsPosition?: number;
-}
+import { OpponentTeam, GroupStandingRow, KnockoutMatch, UserEliminationStatus } from '@/types/game';
 
 export function getUserGroupKey(groups: Record<string, OpponentTeam[]> | null): string {
   if (!groups) return '';
@@ -61,27 +56,6 @@ export function checkKnockoutListElimination(
   return null;
 }
 
-export function checkAllKnockoutEliminations(
-  knockoutMatches: KnockoutMatch[] | null,
-  qfMatches: KnockoutMatch[] | null,
-  sfMatches: KnockoutMatch[] | null,
-  fMatch: KnockoutMatch | null
-): UserEliminationStatus | null {
-  const r16Elim = checkKnockoutListElimination(knockoutMatches, 'Oitavas de Final');
-  if (r16Elim) return r16Elim;
-
-  const qfElim = checkKnockoutListElimination(qfMatches, 'Quartas de Final');
-  if (qfElim) return qfElim;
-
-  const sfElim = checkKnockoutListElimination(sfMatches, 'Semifinal');
-  if (sfElim) return sfElim;
-
-  const fElim = checkKnockoutMatchElimination(fMatch, 'Vice-Campeão');
-  if (fElim) return fElim;
-
-  return null;
-}
-
 interface UserEliminationParams {
   isGroupSimulated: boolean;
   groups: Record<string, OpponentTeam[]> | null;
@@ -100,14 +74,23 @@ export function checkUserElimination(params: UserEliminationParams): UserElimina
   }
 
   if (params.isKnockoutDrawCompleted) {
-    const knockoutElim = checkAllKnockoutEliminations(
-      params.knockoutMatches,
-      params.qfMatches,
-      params.sfMatches,
-      params.fMatch
+    return (
+      checkKnockoutListElimination(params.knockoutMatches, "Oitavas de Final") ||
+      checkKnockoutListElimination(params.qfMatches, "Quartas de Final") ||
+      checkKnockoutListElimination(params.sfMatches, "Semifinal") ||
+      checkKnockoutMatchElimination(params.fMatch, "Vice-Campeão")
     );
-    if (knockoutElim) return knockoutElim;
   }
 
   return null;
+}
+
+export function getMatchRound(i: number, j: number): number {
+  if ((i === 0 && j === 1) || (i === 2 && j === 3)) return 1;
+  if ((i === 0 && j === 2) || (i === 1 && j === 3)) return 2;
+  if ((i === 0 && j === 3) || (i === 1 && j === 2)) return 3;
+  if ((i === 1 && j === 0) || (i === 3 && j === 2)) return 4;
+  if ((i === 2 && j === 0) || (i === 3 && j === 1)) return 5;
+  if ((i === 3 && j === 0) || (i === 2 && j === 1)) return 6;
+  return 1;
 }

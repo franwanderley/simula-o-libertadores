@@ -1,20 +1,28 @@
-import { create } from 'zustand';
-import { Player, Formation, PlayStyle, SquadSlot, OpponentTeam, GroupStandingRow, KnockoutMatch } from '../app/types/game';
-import { getSlotsForFormation } from '../utils/formations';
-import { canBuyPlayer } from '../utils/pricing';
-import { opponentTeams } from '../utils/teams';
-import { SimTeam, MatchResult, getSimTeamFromOpponent, simulateMatch } from '../utils/matchSimulator';
-import { simularPenaltis } from '../utils/penaltySimulator';
-
-function getMatchRound(i: number, j: number): number {
-  if ((i === 0 && j === 1) || (i === 2 && j === 3)) return 1;
-  if ((i === 0 && j === 2) || (i === 1 && j === 3)) return 2;
-  if ((i === 0 && j === 3) || (i === 1 && j === 2)) return 3;
-  if ((i === 1 && j === 0) || (i === 3 && j === 2)) return 4;
-  if ((i === 2 && j === 0) || (i === 3 && j === 1)) return 5;
-  if ((i === 3 && j === 0) || (i === 2 && j === 1)) return 6;
-  return 1;
-}
+import { create } from "zustand";
+import {
+  Player,
+  Formation,
+  PlayStyle,
+  SquadSlot,
+  OpponentTeam,
+  GroupStandingRow,
+  KnockoutMatch,
+  SimTeam,
+  MatchResult,
+} from "@/types/game";
+import { getSlotsForFormation } from "../utils/formations";
+import { canBuyPlayer } from "../utils/pricing";
+import { opponentTeams } from "../utils/teams";
+import { GROUP_KEYS } from "../utils/groupKeys";
+import { getSimTeamFromOpponent, simulateMatch } from "../utils/matchSimulator";
+import { getMatchRound } from "../utils/tournament";
+import { simulatePenalty } from "../utils/penaltySimulator";
+import {
+  calculateAttackOverall,
+  calculateDefenseOverall,
+  calculateChemistry,
+  shuffle,
+} from "../utils/function";
 
 interface GameStore {
   budget: number;
@@ -25,16 +33,21 @@ interface GameStore {
   attackOverall: number;
   defenseOverall: number;
   teamChemistry: number;
-  pots: { pot1: OpponentTeam[], pot2: OpponentTeam[], pot3: OpponentTeam[], pot4: OpponentTeam[] } | null;
+  pots: {
+    pot1: OpponentTeam[];
+    pot2: OpponentTeam[];
+    pot3: OpponentTeam[];
+    pot4: OpponentTeam[];
+  } | null;
   groups: Record<string, OpponentTeam[]> | null;
   isDrawCompleted: boolean;
   groupStandings: Record<string, GroupStandingRow[]> | null;
   isGroupSimulated: boolean;
   currentGroupRound: number;
-  knockoutPots: { potA: OpponentTeam[], potB: OpponentTeam[] } | null;
+  knockoutPots: { potA: OpponentTeam[]; potB: OpponentTeam[] } | null;
   knockoutMatches: KnockoutMatch[] | null;
   isKnockoutDrawCompleted: boolean;
-  knockoutRound: 'R16' | 'QF' | 'SF' | 'F' | 'ended';
+  knockoutRound: "R16" | "QF" | "SF" | "F" | "ended";
   qfMatches: KnockoutMatch[] | null;
   sfMatches: KnockoutMatch[] | null;
   fMatch: KnockoutMatch | null;
@@ -60,139 +73,75 @@ interface GameStore {
   updateGroupStandingsForRound: (round: number) => void;
 }
 
-function calculateAttackOverall(squad: SquadSlot[], playStyle: PlayStyle): number {
-  const active = squad.map(s => s.player).filter((p): p is Player => p !== null);
-  if (active.length === 0) return 0;
-  let totalWeight = 0;
-  let weightedSum = 0;
-  for (const p of active) {
-    let weight = 0.5;
-    if (p.position === 'GK') weight = 0.1;
-    else if (p.position === 'DF') weight = 0.3;
-    else if (p.position === 'MF') weight = 0.9;
-    else if (p.position === 'FW') weight = 1.6;
-    weightedSum += p.overall * weight;
-    totalWeight += weight;
-  }
-  let finalAtk = weightedSum / totalWeight;
-  if (playStyle === 'attack') finalAtk += 3;
-  return Math.min(99, Math.round(finalAtk));
-}
-
-function calculateDefenseOverall(squad: SquadSlot[], playStyle: PlayStyle): number {
-  const active = squad.map(s => s.player).filter((p): p is Player => p !== null);
-  if (active.length === 0) return 0;
-  let totalWeight = 0;
-  let weightedSum = 0;
-  for (const p of active) {
-    let weight = 0.5;
-    if (p.position === 'GK') weight = 1.6;
-    else if (p.position === 'DF') weight = 1.4;
-    else if (p.position === 'MF') weight = 0.7;
-    else if (p.position === 'FW') weight = 0.1;
-    weightedSum += p.overall * weight;
-    totalWeight += weight;
-  }
-  let finalDef = weightedSum / totalWeight;
-  if (playStyle === 'defense') finalDef += 3;
-  return Math.min(99, Math.round(finalDef));
-}
-
-function calculateChemistry(squad: SquadSlot[], formation: Formation, playStyle: PlayStyle): number {
-  const active = squad.map(s => s.player).filter((p): p is Player => p !== null);
-  if (active.length === 0) return 0;
-  let score = 30;
-  for (const slot of squad) {
-    if (slot.player && slot.player.position === slot.position) {
-      score += 30 / 11;
-    }
-  }
-  const clubs: Record<string, number> = {};
-  const nations: Record<string, number> = {};
-  for (const p of active) {
-    clubs[p.club] = (clubs[p.club] || 0) + 1;
-    nations[p.nationality] = (nations[p.nationality] || 0) + 1;
-  }
-  let clubScore = 0;
-  for (const c in clubs) {
-    const count = clubs[c];
-    if (count >= 4) clubScore += 15;
-    else if (count === 3) clubScore += 10;
-    else if (count === 2) clubScore += 5;
-  }
-  score += Math.min(35, clubScore);
-  let nationScore = 0;
-  for (const n in nations) {
-    const count = nations[n];
-    if (count >= 4) nationScore += 15;
-    else if (count === 3) nationScore += 10;
-    else if (count === 2) nationScore += 5;
-  }
-  score += Math.min(35, nationScore);
-  if (
-    ((formation === '4-3-3' || formation === '3-4-3' || formation === '4-3-2-1') && playStyle === 'attack') ||
-    ((formation === '5-3-2' || formation === '4-5-1' || formation === '5-4-1') && playStyle === 'defense') ||
-    (formation === '4-4-2' && playStyle === 'balanced')
-  ) {
-    score += 5;
-  }
-  return Math.min(100, Math.round(score));
-}
-
 const DEFAULT_POSITION_NAMES: Record<string, string> = {
-  gk: 'Weverton',
-  lb: 'Guilherme Arana',
-  lwb: 'Joaquín Piquerez',
-  lcb: 'Thiago Silva',
-  cb: 'Gustavo Gómez',
-  rcb: 'Fabrício Bruno',
-  rb: 'Luis Advíncula',
-  rwb: 'Luis Advíncula',
-  lm: 'Jhon Arias',
-  ldm: 'Erick Pulgar',
-  cm: 'Gerson',
-  lcm: 'Nicolás De La Cruz',
-  rcm: 'Rodrigo Garro',
-  cam: 'G. De Arrascaeta',
-  rdm: 'Arturo Vidal',
-  rm: 'Lucas Moura',
-  lam: 'Thiago Almada',
-  ram: 'Raphael Veiga',
-  ls: 'Germán Cano',
-  rs: 'Hulk',
-  lw: 'Estêvão',
-  st: 'Pedro',
-  rw: 'Luiz Henrique',
-  lf: 'Jonathan Calleri',
-  rf: 'Miguel Borja',
+  gk: "Weverton",
+  lb: "Guilherme Arana",
+  lwb: "Joaquín Piquerez",
+  lcb: "Thiago Silva",
+  cb: "Gustavo Gómez",
+  rcb: "Fabrício Bruno",
+  rb: "Luis Advíncula",
+  rwb: "Luis Advíncula",
+  lm: "Jhon Arias",
+  ldm: "Erick Pulgar",
+  cm: "Gerson",
+  lcm: "Nicolás De La Cruz",
+  rcm: "Rodrigo Garro",
+  cam: "G. De Arrascaeta",
+  rdm: "Arturo Vidal",
+  rm: "Lucas Moura",
+  lam: "Thiago Almada",
+  ram: "Raphael Veiga",
+  ls: "Germán Cano",
+  rs: "Hulk",
+  lw: "Estêvão",
+  st: "Pedro",
+  rw: "Luiz Henrique",
+  lf: "Jonathan Calleri",
+  rf: "Miguel Borja",
 };
 
 const getUserSimTeam = (get: () => GameStore): SimTeam => {
-  const { squad, attackOverall, defenseOverall, teamChemistry, formation, playStyle, teamName } = get();
+  const {
+    squad,
+    attackOverall,
+    defenseOverall,
+    teamChemistry,
+    formation,
+    playStyle,
+    teamName,
+  } = get();
   const avgOverall = Math.round((attackOverall + defenseOverall) / 2);
-  const players = squad.map(slot => ({
-    name: slot.player ? slot.player.name : (DEFAULT_POSITION_NAMES[slot.id.toLowerCase()] || slot.label),
+  const players = squad.map((slot) => ({
+    name: slot.player
+      ? slot.player.name
+      : DEFAULT_POSITION_NAMES[slot.id.toLowerCase()] || slot.label,
     overall: slot.player ? slot.player.overall : 60,
-    position: slot.position
+    position: slot.position,
   }));
-  let tactic: 'Muito Defensiva' | 'Defensiva' | 'Neutra' | 'Ofensiva' | 'Muito Ofensiva' = 'Neutra';
-  if (playStyle === 'attack') tactic = 'Ofensiva';
-  else if (playStyle === 'defense') tactic = 'Defensiva';
+  let tactic:
+    | "Muito Defensiva"
+    | "Defensiva"
+    | "Neutra"
+    | "Ofensiva"
+    | "Muito Ofensiva" = "Neutra";
+  if (playStyle === "attack") tactic = "Ofensiva";
+  else if (playStyle === "defense") tactic = "Defensiva";
   return {
-    name: teamName || 'Seu Time (Draft)',
+    name: teamName || "Seu Time (Draft)",
     overall: avgOverall,
     players,
     chemistry: teamChemistry,
     formation,
-    tactic
+    tactic,
   };
 };
 
 export const useGameStore = create<GameStore>((set, get) => ({
   budget: 100000,
-  formation: '4-4-2',
-  playStyle: 'balanced',
-  squad: getSlotsForFormation('4-4-2'),
+  formation: "4-4-2",
+  playStyle: "balanced",
+  squad: getSlotsForFormation("4-4-2"),
   isOnboarded: false,
   attackOverall: 0,
   defenseOverall: 0,
@@ -206,23 +155,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
   knockoutPots: null,
   knockoutMatches: null,
   isKnockoutDrawCompleted: false,
-  knockoutRound: 'R16',
+  knockoutRound: "R16",
   qfMatches: null,
   sfMatches: null,
   fMatch: null,
   champion: null,
   matchResults: {},
-  teamName: 'Seu Time (Draft)',
+  teamName: "Seu Time (Draft)",
   setTeamName: (name) => set({ teamName: name }),
 
   setFormation: (formation) => {
     const { squad, budget } = get();
-    const oldPlayers = squad.map(s => s.player).filter((p): p is Player => p !== null);
+    const oldPlayers = squad
+      .map((s) => s.player)
+      .filter((p): p is Player => p !== null);
     const newSlots = getSlotsForFormation(formation);
     let updatedBudget = budget;
 
     for (const player of oldPlayers) {
-      const emptySlot = newSlots.find(s => s.position === player.position && s.player === null);
+      const emptySlot = newSlots.find(
+        (s) => s.position === player.position && s.player === null,
+      );
       if (emptySlot) {
         emptySlot.player = player;
       } else {
@@ -252,13 +205,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   buyPlayer: (player, slotId) => {
     const { squad, budget, formation, playStyle } = get();
-    const isAlreadyInSquad = squad.some(s => s.player?.id === player.id);
+    const isAlreadyInSquad = squad.some((s) => s.player?.id === player.id);
     if (isAlreadyInSquad) return false;
 
-    const currentSquadSize = squad.filter(s => s.player !== null).length;
+    const currentSquadSize = squad.filter((s) => s.player !== null).length;
     if (!canBuyPlayer(player.price, currentSquadSize, budget)) return false;
 
-    const newSquad = squad.map(s => {
+    const newSquad = squad.map((s) => {
       if (s.id === slotId) {
         return { ...s, player };
       }
@@ -277,11 +230,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   sellPlayer: (slotId) => {
     const { squad, budget, formation, playStyle } = get();
-    const slot = squad.find(s => s.id === slotId);
-    if (!slot || !slot.player) return;
+    const slot = squad.find((s) => s.id === slotId);
+    if (!slot?.player) return;
 
     const refundedPrice = slot.player.price;
-    const newSquad = squad.map(s => {
+    const newSquad = squad.map((s) => {
       if (s.id === slotId) {
         return { ...s, player: null };
       }
@@ -311,17 +264,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   completeDraft: () => {
     const { squad } = get();
-    const isComplete = squad.every(s => s.player !== null);
+    const isComplete = squad.every((s) => s.player !== null);
     if (isComplete) {
       set({ isOnboarded: true });
     }
   },
 
   initializePots: (userTeam) => {
-    const sameTierIndex = opponentTeams.findIndex(t => t.tier === userTeam.tier);
-    const filteredOpponents = sameTierIndex !== -1
-      ? opponentTeams.filter((_, idx) => idx !== sameTierIndex)
-      : opponentTeams.slice(0, 31);
+    const sameTierIndex = opponentTeams.findIndex(
+      (t) => t.tier === userTeam.tier,
+    );
+    const filteredOpponents =
+      sameTierIndex === -1
+        ? opponentTeams.slice(0, 31)
+        : opponentTeams.filter((_, idx) => idx !== sameTierIndex);
     const combined = [userTeam, ...filteredOpponents];
     const sorted = [...combined].sort((a, b) => {
       const avgA = (a.attackOverall + a.defenseOverall) / 2;
@@ -348,25 +304,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
   runGroupDraw: () => {
     const { pots } = get();
     if (!pots) return;
-    const groupKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const groupKeys = GROUP_KEYS;
     const groups: Record<string, OpponentTeam[]> = {
-      A: [], B: [], C: [], D: [], E: [], F: [], G: [], H: []
+      A: [],
+      B: [],
+      C: [],
+      D: [],
+      E: [],
+      F: [],
+      G: [],
+      H: [],
     };
-    const shuffle = <T>(arr: T[]): T[] => {
-      const copy = [...arr];
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-      }
-      return copy;
-    };
+
     const drawPot = (pot: OpponentTeam[]) => {
       const shuffled = shuffle(pot);
       const unassignedGroups = [...groupKeys];
       for (const team of shuffled) {
-        let targetIdx = unassignedGroups.findIndex(gKey => {
+        let targetIdx = unassignedGroups.findIndex((gKey) => {
           const groupTeams = groups[gKey];
-          return !groupTeams.some(t => t.country === team.country);
+          return !groupTeams.some((t) => t.country === team.country);
         });
         if (targetIdx === -1) {
           targetIdx = 0;
@@ -397,7 +353,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       knockoutPots: null,
       knockoutMatches: null,
       isKnockoutDrawCompleted: false,
-      knockoutRound: 'R16',
+      knockoutRound: "R16",
       qfMatches: null,
       sfMatches: null,
       fMatch: null,
@@ -416,8 +372,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
           if (i === j) continue;
           const teamA = teams[i];
           const teamB = teams[j];
-          const simTeamA = teamA.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(teamA);
-          const simTeamB = teamB.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(teamB);
+          const simTeamA =
+            teamA.id === "user_team"
+              ? getUserSimTeam(get)
+              : getSimTeamFromOpponent(teamA);
+          const simTeamB =
+            teamB.id === "user_team"
+              ? getUserSimTeam(get)
+              : getSimTeamFromOpponent(teamB);
           const result = simulateMatch(simTeamA, simTeamB);
           results[`group_${gKey}_${teamA.id}_${teamB.id}`] = result;
         }
@@ -444,7 +406,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!groups) return;
     const standings: Record<string, GroupStandingRow[]> = {};
     for (const [gKey, teams] of Object.entries(groups)) {
-      const list: GroupStandingRow[] = teams.map(t => ({
+      const list: GroupStandingRow[] = teams.map((t) => ({
         teamId: t.id,
         name: t.name,
         logoColor: t.logoColor,
@@ -456,7 +418,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         goalsFor: 0,
         goalsAgainst: 0,
         goalDifference: 0,
-        points: 0
+        points: 0,
       }));
       for (let i = 0; i < teams.length; i++) {
         for (let j = 0; j < teams.length; j++) {
@@ -465,10 +427,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
           if (matchRound <= round) {
             const teamA = teams[i];
             const teamB = teams[j];
-            const result = matchResults[`group_${gKey}_${teamA.id}_${teamB.id}`];
+            const result =
+              matchResults[`group_${gKey}_${teamA.id}_${teamB.id}`];
             if (result) {
-              const rowA = list.find(r => r.teamId === teamA.id)!;
-              const rowB = list.find(r => r.teamId === teamB.id)!;
+              const rowA = list.find((r) => r.teamId === teamA.id)!;
+              const rowB = list.find((r) => r.teamId === teamB.id)!;
               rowA.played += 1;
               rowB.played += 1;
               rowA.goalsFor += result.goalsA;
@@ -497,7 +460,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       list.sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
-        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+        if (b.goalDifference !== a.goalDifference)
+          return b.goalDifference - a.goalDifference;
         if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
         return a.name.localeCompare(b.name);
       });
@@ -506,14 +470,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (round === 6) {
       const findOpponentTeam = (id: string): OpponentTeam | null => {
         for (const groupTeams of Object.values(groups)) {
-          const found = groupTeams.find(t => t.id === id);
+          const found = groupTeams.find((t) => t.id === id);
           if (found) return found;
         }
         return null;
       };
       const firstPlaces: OpponentTeam[] = [];
       const secondPlaces: OpponentTeam[] = [];
-      const groupKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const groupKeys = GROUP_KEYS;
       for (const gKey of groupKeys) {
         const standing = standings[gKey];
         const t1 = findOpponentTeam(standing[0].teamId);
@@ -533,14 +497,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   runKnockoutDraw: () => {
     const { knockoutPots } = get();
     if (!knockoutPots) return;
-    const shuffle = <T>(arr: T[]): T[] => {
-      const copy = [...arr];
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-      }
-      return copy;
-    };
+
     const shuffledA = shuffle(knockoutPots.potA);
     const shuffledB = shuffle(knockoutPots.potB);
     const knockoutMatches: KnockoutMatch[] = [];
@@ -549,13 +506,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         id: `R16_${i + 1}`,
         teamA: shuffledA[i],
         teamB: shuffledB[i],
-        winnerId: null
+        winnerId: null,
       });
     }
     set({
       knockoutMatches,
       isKnockoutDrawCompleted: true,
-      knockoutRound: 'R16',
+      knockoutRound: "R16",
       qfMatches: null,
       sfMatches: null,
       fMatch: null,
@@ -567,7 +524,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       knockoutMatches: null,
       isKnockoutDrawCompleted: false,
-      knockoutRound: 'R16',
+      knockoutRound: "R16",
       qfMatches: null,
       sfMatches: null,
       fMatch: null,
@@ -577,32 +534,50 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   preSimulateKnockoutRoundMatches: () => {
-    const { knockoutRound, knockoutMatches, qfMatches, sfMatches, fMatch, matchResults } = get();
+    const {
+      knockoutRound,
+      knockoutMatches,
+      qfMatches,
+      sfMatches,
+      fMatch,
+      matchResults,
+    } = get();
     const results = { ...matchResults };
 
     let currentMatches: KnockoutMatch[] = [];
-    if (knockoutRound === 'R16' && knockoutMatches) {
+    if (knockoutRound === "R16" && knockoutMatches) {
       currentMatches = knockoutMatches;
-    } else if (knockoutRound === 'QF' && qfMatches) {
+    } else if (knockoutRound === "QF" && qfMatches) {
       currentMatches = qfMatches;
-    } else if (knockoutRound === 'SF' && sfMatches) {
+    } else if (knockoutRound === "SF" && sfMatches) {
       currentMatches = sfMatches;
-    } else if (knockoutRound === 'F' && fMatch) {
+    } else if (knockoutRound === "F" && fMatch) {
       currentMatches = [fMatch];
     }
 
     for (const m of currentMatches) {
-      const simTeamA = m.teamA.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(m.teamA);
-      const simTeamB = m.teamB.id === 'user_team' ? getUserSimTeam(get) : getSimTeamFromOpponent(m.teamB);
+      const simTeamA =
+        m.teamA.id === "user_team"
+          ? getUserSimTeam(get)
+          : getSimTeamFromOpponent(m.teamA);
+      const simTeamB =
+        m.teamB.id === "user_team"
+          ? getUserSimTeam(get)
+          : getSimTeamFromOpponent(m.teamB);
       let result = simulateMatch(simTeamA, simTeamB);
-      
+
       if (result.goalsA === result.goalsB) {
         result = {
           ...result,
-          penalties: simularPenaltis(simTeamA, simTeamB, m.teamA.id, m.teamB.id)
+          penalties: simulatePenalty(
+            simTeamA,
+            simTeamB,
+            m.teamA.id,
+            m.teamB.id,
+          ),
         };
       }
-      
+
       results[m.id] = result;
     }
 
@@ -610,13 +585,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   advanceKnockoutRound: () => {
-    const { knockoutRound, knockoutMatches, qfMatches, sfMatches, fMatch, matchResults } = get();
-    
+    const {
+      knockoutRound,
+      knockoutMatches,
+      qfMatches,
+      sfMatches,
+      fMatch,
+      matchResults,
+    } = get();
+
     const applyMatchResults = (matches: KnockoutMatch[]): KnockoutMatch[] => {
-      return matches.map(m => {
+      return matches.map((m) => {
         const result = matchResults[m.id];
         if (!result) return m;
-        
+
         let winnerId = m.teamA.id;
         if (result.goalsA > result.goalsB) {
           winnerId = m.teamA.id;
@@ -626,24 +608,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
           if (result.penalties) {
             winnerId = result.penalties.winnerId;
           } else {
-            const penEvent = result.events.find(e => e.minute === 120);
-            if (penEvent && penEvent.teamName === m.teamB.name) {
+            const penEvent = result.events.find((e) => e.minute === 120);
+            if (penEvent?.teamName === m.teamB.name) {
               winnerId = m.teamB.id;
             }
           }
         }
-        
+
         return {
           ...m,
           winnerId,
-          scores: [{ home: result.goalsA, away: result.goalsB }]
+          scores: [{ home: result.goalsA, away: result.goalsB }],
         };
       });
     };
 
-    if (knockoutRound === 'R16' && knockoutMatches) {
+    if (knockoutRound === "R16" && knockoutMatches) {
       const simulated = applyMatchResults(knockoutMatches);
-      const winners = simulated.map(m => {
+      const winners = simulated.map((m) => {
         return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
       });
       const qf: KnockoutMatch[] = [];
@@ -652,17 +634,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
           id: `QF_${i + 1}`,
           teamA: winners[i * 2],
           teamB: winners[i * 2 + 1],
-          winnerId: null
+          winnerId: null,
         });
       }
       set({
         knockoutMatches: simulated,
         qfMatches: qf,
-        knockoutRound: 'QF'
+        knockoutRound: "QF",
       });
-    } else if (knockoutRound === 'QF' && qfMatches) {
+    } else if (knockoutRound === "QF" && qfMatches) {
       const simulated = applyMatchResults(qfMatches);
-      const winners = simulated.map(m => {
+      const winners = simulated.map((m) => {
         return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
       });
       const sf: KnockoutMatch[] = [];
@@ -671,37 +653,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
           id: `SF_${i + 1}`,
           teamA: winners[i * 2],
           teamB: winners[i * 2 + 1],
-          winnerId: null
+          winnerId: null,
         });
       }
       set({
         qfMatches: simulated,
         sfMatches: sf,
-        knockoutRound: 'SF'
+        knockoutRound: "SF",
       });
-    } else if (knockoutRound === 'SF' && sfMatches) {
+    } else if (knockoutRound === "SF" && sfMatches) {
       const simulated = applyMatchResults(sfMatches);
-      const winners = simulated.map(m => {
+      const winners = simulated.map((m) => {
         return m.winnerId === m.teamA.id ? m.teamA : m.teamB;
       });
       const f: KnockoutMatch = {
-        id: 'F_1',
+        id: "F_1",
         teamA: winners[0],
         teamB: winners[1],
-        winnerId: null
+        winnerId: null,
       };
       set({
         sfMatches: simulated,
         fMatch: f,
-        knockoutRound: 'F'
+        knockoutRound: "F",
       });
-    } else if (knockoutRound === 'F' && fMatch) {
+    } else if (knockoutRound === "F" && fMatch) {
       const simulated = applyMatchResults([fMatch])[0];
-      const champion = simulated.winnerId === simulated.teamA.id ? simulated.teamA : simulated.teamB;
+      const champion =
+        simulated.winnerId === simulated.teamA.id
+          ? simulated.teamA
+          : simulated.teamB;
       set({
         fMatch: simulated,
         champion,
-        knockoutRound: 'ended'
+        knockoutRound: "ended",
       });
     }
   },

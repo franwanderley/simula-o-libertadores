@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { Trophy, Zap, RefreshCw, ArrowRight, CheckCircle2, Lock, X, Share2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Trophy, Zap, RefreshCw, ArrowRight, CheckCircle2, Lock, Share2 } from 'lucide-react';
 import { useGameStore } from '../hooks/useGameStore';
-import { OpponentTeam, KnockoutMatch } from '../app/types/game';
-import { MatchEvent, MatchResult } from '../utils/matchSimulator';
-import { PenaltyKick } from '../utils/penaltySimulator';
-import { WhistleIcon } from '../assets/icons/WhistleIcon';
+import { OpponentTeam, KnockoutMatch, MatchResult } from '../types/game';
+import { MatchDetailsModal } from './MatchDetailsModal';
+import { LiveSimulationOverlay } from './LiveSimulationOverlay';
 import { GroupMatchesList } from './GroupMatchesList';
 import { checkUserElimination } from '../utils/tournament';
+import { GROUP_KEYS } from '../utils/groupKeys';
 
 const SLOT_POSITIONS: Record<string, { top: string; left: string }> = {
   gk: { top: '85%', left: '50%' },
@@ -36,6 +36,60 @@ const SLOT_POSITIONS: Record<string, { top: string; left: string }> = {
   rw: { top: '15%', left: '90%' },
   lf: { top: '22%', left: '28%' },
   rf: { top: '22%', left: '72%' },
+};
+
+const ELIMINATION_MESSAGES: Record<string, string> = {
+  'Vice-Campeão': 'Vice-Campeão da Libertadores!',
+  'Oitavas de Final': 'Eliminado nas Oitavas de Final',
+  'Quartas de Final': 'Eliminado nas Quartas de Final',
+};
+
+const TEAM_COLOR_MAP = {
+  user: 'text-amber-400 font-extrabold',
+  loser: 'text-slate-500 line-through',
+  default: 'text-slate-200 font-bold',
+} as const;
+
+const getTeamColorKey = (teamId: string, winnerId: string | null | undefined, isCompleted: boolean) => {
+  if (teamId === 'user_team') return 'user';
+  if (isCompleted && winnerId !== teamId) return 'loser';
+  return 'default';
+};
+
+const STANDINGS_ROW_STYLE_MAP = {
+  user: 'bg-amber-500/15 border-amber-500/40 text-amber-400 font-bold',
+  qualified: 'bg-slate-850 border-slate-800/60 text-slate-200',
+  default: 'bg-slate-900 border-transparent text-slate-500',
+} as const;
+
+const getStandingsRowStyleKey = (isUser: boolean, isQualified: boolean) => {
+  if (isUser) return 'user';
+  if (isQualified) return 'qualified';
+  return 'default';
+};
+
+const STANDINGS_RANK_STYLE_MAP = {
+  first: 'bg-yellow-500/20 text-yellow-400',
+  second: 'bg-slate-400/20 text-slate-300',
+  default: 'bg-slate-800 text-slate-600',
+} as const;
+
+const getStandingsRankStyleKey = (idx: number) => {
+  if (idx === 0) return 'first';
+  if (idx === 1) return 'second';
+  return 'default';
+};
+
+const GOAL_DIFF_STYLE_MAP = {
+  positive: 'text-emerald-500',
+  negative: 'text-red-500',
+  neutral: 'text-slate-400',
+} as const;
+
+const getGoalDiffStyleKey = (gd: number) => {
+  if (gd > 0) return 'positive';
+  if (gd < 0) return 'negative';
+  return 'neutral';
 };
 
 const getGroupRoundMatches = (groupTeams: OpponentTeam[], round: number) => {
@@ -83,7 +137,6 @@ interface TournamentStepProps {
 
 export function TournamentStep(props: Readonly<TournamentStepProps>) {
   const store = useGameStore();
-  const feedRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<'groups' | 'draw' | 'bracket'>('groups');
 
   const [selectedMatch, setSelectedMatch] = useState<{
@@ -105,11 +158,6 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
   } | null>(null);
 
   const [copied, setCopied] = useState(false);
-  const [showShootoutState, setShowShootoutState] = useState<'not_started' | 'active' | 'completed'>('not_started');
-  const [activePenaltyKickIndex, setActivePenaltyKickIndex] = useState(0);
-  const [isPenaltyKicking, setIsPenaltyKicking] = useState(false);
-  const [penaltyKicksHistory, setPenaltyKicksHistory] = useState<PenaltyKick[]>([]);
-  const [showPenaltyResultEffect, setShowPenaltyResultEffect] = useState(false);
 
   const isUserEliminated = checkUserElimination({
     isGroupSimulated: store.isGroupSimulated,
@@ -121,6 +169,10 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
     sfMatches: store.sfMatches,
     fMatch: store.fMatch
   });
+
+  const eliminationMessage = isUserEliminated
+    ? (ELIMINATION_MESSAGES[isUserEliminated.eliminatedAt] ?? `Eliminado na ${isUserEliminated.eliminatedAt}`)
+    : '';
 
   const handleShareCampaign = () => {
     if (!isUserEliminated) return;
@@ -137,28 +189,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
     });
   };
 
-  const getLiveScore = (events: MatchEvent[], currentMinute: number, teamAName: string, teamBName: string) => {
-    let scoreA = 0;
-    let scoreB = 0;
-    const liveEvents = events.filter(e => e.minute <= currentMinute);
-    for (const e of liveEvents) {
-      if (e.type === 'goal') {
-        if (e.teamName === teamAName) {
-          scoreA++;
-        } else if (e.teamName === teamBName) {
-          scoreB++;
-        }
-      }
-    }
-    return { scoreA, scoreB, liveEvents };
-  };
-
-  const getMaxMinute = (matches: {
-    id: string;
-    teamA: OpponentTeam;
-    teamB: OpponentTeam;
-    result: MatchResult;
-  }[]) => {
+  const getMaxMinute = (matches: { result: MatchResult }[]) => {
     let maxMin = 90;
     for (const m of matches) {
       if (m?.result?.events) {
@@ -174,89 +205,6 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
 
   const maxMinute = liveSimulation ? getMaxMinute(liveSimulation.matches) : 90;
 
-  useEffect(() => {
-    if (!liveSimulation) return;
-    if (liveSimulation.currentMinute >= maxMinute) return;
-    
-    const interval = setInterval(() => {
-      setLiveSimulation(prev => {
-        if (!prev) return null;
-        const nextMin = prev.currentMinute + 1;
-        if (nextMin >= maxMinute) {
-          clearInterval(interval);
-        }
-        return {
-          ...prev,
-          currentMinute: nextMin
-        };
-      });
-    }, 667);
-    
-    return () => clearInterval(interval);
-  }, [liveSimulation, maxMinute]);
-
-  const resetShootoutStates = () => {
-    setShowShootoutState('not_started');
-    setActivePenaltyKickIndex(0);
-    setIsPenaltyKicking(false);
-    setPenaltyKicksHistory([]);
-    setShowPenaltyResultEffect(false);
-  };
-
-  const liveEventsCount = liveSimulation
-    ? getLiveScore(
-        liveSimulation.matches.find(m => m.teamA.id === 'user_team' || m.teamB.id === 'user_team')?.result.events || liveSimulation.matches[0]?.result.events || [],
-        liveSimulation.currentMinute,
-        '',
-        ''
-      ).liveEvents.length
-    : 0;
-
-  useEffect(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
-    }
-  }, [liveEventsCount]);
-
-  useEffect(() => {
-    if (showShootoutState !== 'active' || !liveSimulation) return;
-    
-    const userMatch = liveSimulation.matches.find(
-      m => m.teamA.id === 'user_team' || m.teamB.id === 'user_team'
-    );
-    const mainMatch = userMatch || liveSimulation.matches[0];
-    if (!mainMatch || !mainMatch.result.penalties) return;
-    
-    const kicks = mainMatch.result.penalties.kicks;
-    const currentKick = kicks[activePenaltyKickIndex];
-    if (!currentKick) return;
-
-    let timer: ReturnType<typeof setTimeout>;
-
-    if (!isPenaltyKicking && !showPenaltyResultEffect) {
-      timer = setTimeout(() => {
-        setIsPenaltyKicking(true);
-      }, 1200);
-    } else if (isPenaltyKicking) {
-      timer = setTimeout(() => {
-        setIsPenaltyKicking(false);
-        setPenaltyKicksHistory(prev => [...prev, currentKick]);
-        setShowPenaltyResultEffect(true);
-      }, 800);
-    } else if (showPenaltyResultEffect) {
-      timer = setTimeout(() => {
-        if (activePenaltyKickIndex === kicks.length - 1) {
-          setShowShootoutState('completed');
-        } else {
-          setShowPenaltyResultEffect(false);
-          setActivePenaltyKickIndex(prev => prev + 1);
-        }
-      }, 1200);
-    }
-
-    return () => clearTimeout(timer);
-  }, [showShootoutState, activePenaltyKickIndex, isPenaltyKicking, showPenaltyResultEffect, liveSimulation]);
-
   const renderBracketMatch = (m: KnockoutMatch | null, labelA: string, labelB: string) => {
     if (!m) {
       return (
@@ -266,7 +214,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
         </div>
       );
     }
-    const isCompleted = m.winnerId !== null && m.scores && m.scores.length > 0;
+    const isCompleted = !!(m.winnerId && m.scores && m.scores.length > 0);
     const scoreHome = isCompleted ? m.scores![0].home : null;
     const scoreAway = isCompleted ? m.scores![0].away : null;
     const result = store.matchResults[m.id];
@@ -298,13 +246,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
             <div className={`w-5 h-5 rounded-full ${m.teamA.logoColor} flex items-center justify-center font-black text-[8px] text-white shrink-0`}>
               {m.teamA.name.slice(0, 2).toUpperCase()}
             </div>
-            <span className={`text-xs truncate ${
-              m.teamA.id === 'user_team'
-                ? 'text-amber-400 font-extrabold'
-                : isCompleted && m.winnerId !== m.teamA.id
-                ? 'text-slate-500 line-through'
-                : 'text-slate-200 font-bold'
-            }`}>
+            <span className={`text-xs truncate ${TEAM_COLOR_MAP[getTeamColorKey(m.teamA.id, m.winnerId, isCompleted)]}`}>
               {m.teamA.name}
             </span>
           </div>
@@ -322,13 +264,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
             <div className={`w-5 h-5 rounded-full ${m.teamB.logoColor} flex items-center justify-center font-black text-[8px] text-white shrink-0`}>
               {m.teamB.name.slice(0, 2).toUpperCase()}
             </div>
-            <span className={`text-xs truncate ${
-              m.teamB.id === 'user_team'
-                ? 'text-amber-400 font-extrabold'
-                : isCompleted && m.winnerId !== m.teamB.id
-                ? 'text-slate-500 line-through'
-                : 'text-slate-200 font-bold'
-            }`}>
+            <span className={`text-xs truncate ${TEAM_COLOR_MAP[getTeamColorKey(m.teamB.id, m.winnerId, isCompleted)]}`}>
               {m.teamB.name}
             </span>
           </div>
@@ -420,7 +356,6 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
   const handlePlayRound = () => {
     const round = store.currentGroupRound + 1;
     const roundMatches = getRoundMatches(round);
-    resetShootoutStates();
     setLiveSimulation({
       matches: roundMatches,
       currentMinute: 0,
@@ -428,7 +363,6 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
       onComplete: () => {
         store.advanceGroupRound();
         setLiveSimulation(null);
-        resetShootoutStates();
       }
     });
   };
@@ -478,7 +412,6 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
     } else if (roundBefore === 'F') {
       title = 'Grande Final - Simulação ao Vivo';
     }
-    resetShootoutStates();
     setLiveSimulation({
       matches: formattedMatches,
       currentMinute: 0,
@@ -486,7 +419,6 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
       onComplete: () => {
         useGameStore.getState().advanceKnockoutRound();
         setLiveSimulation(null);
-        resetShootoutStates();
       }
     });
   };
@@ -496,7 +428,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
     props.onReset();
   };
 
-  const groupKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const groupKeys = GROUP_KEYS;
 
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-6">
@@ -534,13 +466,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
                 Fim da Linha!
               </span>
               <h3 className="text-2xl font-black text-white uppercase tracking-tight mt-3">
-                {isUserEliminated.eliminatedAt === 'Vice-Campeão'
-                  ? 'Vice-Campeão da Libertadores!'
-                  : isUserEliminated.eliminatedAt === 'Oitavas de Final'
-                  ? 'Eliminado nas Oitavas de Final'
-                  : isUserEliminated.eliminatedAt === 'Quartas de Final'
-                  ? 'Eliminado nas Quartas de Final'
-                  : `Eliminado na ${isUserEliminated.eliminatedAt}`}
+                {eliminationMessage}
               </h3>
               <p className="text-slate-400 text-xs mt-1">
                 Sua equipe lutou bravamente, mas a jornada na Libertadores chegou ao fim.
@@ -662,7 +588,25 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
       {activeTab === 'groups' && (
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-6">
-            {!store.isGroupSimulated ? (
+            {store.isGroupSimulated ? (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 max-w-4xl mx-auto w-full animate-in fade-in duration-300">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                  <span className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Fase de Grupos Concluida</span>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!store.isKnockoutDrawCompleted) {
+                      store.runKnockoutDraw();
+                    }
+                    setActiveTab('bracket');
+                  }}
+                  className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer active:scale-95 flex items-center gap-1.5"
+                >
+                  Ir para Chaveamento do Mata-Mata <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row justify-between items-center gap-6 max-w-4xl mx-auto w-full relative overflow-hidden animate-in fade-in duration-300">
                 <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl animate-pulse" />
                 <div className="flex-1">
@@ -704,24 +648,6 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 max-w-4xl mx-auto w-full animate-in fade-in duration-300">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                  <span className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Fase de Grupos Concluida</span>
-                </div>
-                <button
-                  onClick={() => {
-                    if (!store.isKnockoutDrawCompleted) {
-                      store.runKnockoutDraw();
-                    }
-                    setActiveTab('bracket');
-                  }}
-                  className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer active:scale-95 flex items-center gap-1.5"
-                >
-                  Ir para Chaveamento do Mata-Mata <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
             )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -747,16 +673,12 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
                             <div
                               key={row.teamId}
                               className={`grid grid-cols-12 items-center text-xs p-1.5 rounded-lg border transition-all ${
-                                isUser
-                                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-400 font-bold'
-                                  : isQualified
-                                  ? 'bg-slate-850 border-slate-800/60 text-slate-200'
-                                  : 'bg-slate-900 border-transparent text-slate-500'
+                                STANDINGS_ROW_STYLE_MAP[getStandingsRowStyleKey(isUser, isQualified)]
                               }`}
                             >
                               <div className="col-span-6 flex items-center gap-1.5 min-w-0">
                                 <span className={`text-[9px] font-bold text-center w-4 h-4 rounded-full flex items-center justify-center ${
-                                  idx === 0 ? 'bg-yellow-500/20 text-yellow-400' : idx === 1 ? 'bg-slate-400/20 text-slate-300' : 'bg-slate-800 text-slate-600'
+                                  STANDINGS_RANK_STYLE_MAP[getStandingsRankStyleKey(idx)]
                                 }`}>
                                   {idx + 1}
                                 </span>
@@ -765,7 +687,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
                               <span className="col-span-2 text-center font-black">{row.points}</span>
                               <span className="col-span-2 text-center font-mono opacity-75">{row.played}</span>
                               <span className={`col-span-2 text-center font-mono font-bold ${
-                                row.goalDifference > 0 ? 'text-emerald-500' : row.goalDifference < 0 ? 'text-red-500' : 'text-slate-400'
+                                GOAL_DIFF_STYLE_MAP[getGoalDiffStyleKey(row.goalDifference)]
                               }`}>
                                 {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
                               </span>
@@ -902,786 +824,21 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
       )}
       </>)}
 
-      {selectedMatch && (() => {
-        const result = store.matchResults[selectedMatch.id];
-        if (!result) return null;
-        return (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-xl w-full shadow-2xl flex flex-col gap-6 relative animate-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
-              <button
-                onClick={() => setSelectedMatch(null)}
-                className="absolute top-4 right-4 p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl cursor-pointer transition animate-none"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              
-              <div className="text-center">
-                <span className="text-[10px] bg-slate-800 px-2 py-1 rounded-md text-amber-500 font-extrabold uppercase tracking-widest">
-                  Detalhes da Partida
-                </span>
-              </div>
+      {selectedMatch && store.matchResults[selectedMatch.id] && (
+        <MatchDetailsModal
+          match={selectedMatch}
+          result={store.matchResults[selectedMatch.id]}
+          onClose={() => setSelectedMatch(null)}
+        />
+      )}
 
-              <div className="flex items-center justify-between gap-4 mt-2">
-                <div className="flex flex-col items-center flex-1 min-w-0">
-                  <div className={`w-14 h-14 rounded-full ${selectedMatch.teamA.logoColor} flex items-center justify-center text-white font-black text-xl border border-white/10 shadow-lg`}>
-                    {selectedMatch.teamA.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
-                    {selectedMatch.teamA.name}
-                  </span>
-                  <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">
-                    {selectedMatch.teamA.country}
-                  </span>
-                </div>
-
-                <div className="flex flex-col items-center gap-1 shrink-0 px-4">
-                  <div className="text-4xl font-black text-white flex items-center gap-3">
-                    <span>{result.goalsA}</span>
-                    {result.penalties && (
-                      <span className="text-sm text-slate-400 font-normal">({result.penalties.goalsA})</span>
-                    )}
-                    <span className="text-slate-600 text-lg font-medium">x</span>
-                    {result.penalties && (
-                      <span className="text-sm text-slate-400 font-normal">({result.penalties.goalsB})</span>
-                    )}
-                    <span>{result.goalsB}</span>
-                  </div>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase mt-1">Placar Final</span>
-                </div>
-
-                <div className="flex flex-col items-center flex-1 min-w-0">
-                  <div className={`w-14 h-14 rounded-full ${selectedMatch.teamB.logoColor} flex items-center justify-center text-white font-black text-xl border border-white/10 shadow-lg`}>
-                    {selectedMatch.teamB.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
-                    {selectedMatch.teamB.name}
-                  </span>
-                  <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">
-                    {selectedMatch.teamB.country}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800">
-                <h4 className="text-[10px] text-slate-400 font-extrabold uppercase mb-3 tracking-widest text-center">
-                  Eventos do Jogo
-                </h4>
-                <div className="flex flex-col gap-2.5 max-h-40 overflow-y-auto pr-1">
-                  {result.events.length > 0 ? (
-                    result.events.map((ev, idx) => {
-                      const isTeamA = ev.teamName === selectedMatch.teamA.name;
-                      const isUserMatch = selectedMatch.teamA.id === 'user_team' || selectedMatch.teamB.id === 'user_team';
-                      return (
-                        <div
-                          key={`${idx}-${ev.minute}`}
-                          className={`flex items-start text-xs gap-2 ${isTeamA ? 'flex-row' : 'flex-row-reverse text-right'}`}
-                        >
-                          {isUserMatch && (
-                            <span className="font-mono text-amber-500 font-bold shrink-0 mt-1">{ev.minute}&apos;</span>
-                          )}
-                          <div className={`px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 max-w-[85%] border text-[10px] leading-snug ${
-                            ev.type === 'goal'
-                              ? 'bg-emerald-950/20 border-emerald-500/35 text-slate-200'
-                              : ev.type === 'foul'
-                              ? 'bg-yellow-950/15 border-yellow-500/30 text-slate-300'
-                              : 'bg-slate-950/30 border-slate-800 text-slate-300'
-                          }`}>
-                            {ev.type === 'goal' && <span className="text-emerald-400 shrink-0">⚽</span>}
-                            {ev.type === 'shot' && <span className="text-blue-400 shrink-0">🎯</span>}
-                            {ev.type === 'foul' && <WhistleIcon />}
-                            <span className="wrap-break-word">{ev.description}</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-4 text-xs text-slate-500 font-medium">
-                      Sem gols na partida.
-                    </div>
-                  )}
-                  {result.penalties && (
-                    <div className="mt-4 border-t border-slate-800 pt-4 flex flex-col gap-2.5 text-left">
-                      <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center mb-1 block">
-                        Decisão por Pênaltis ({result.penalties.goalsA} - {result.penalties.goalsB})
-                      </span>
-                      {result.penalties.kicks.map((kick, kIdx) => {
-                        const isTeamA = kick.teamId === 'A';
-                        return (
-                          <div
-                            key={kIdx}
-                            className={`flex items-start text-xs gap-2 ${isTeamA ? 'flex-row' : 'flex-row-reverse text-right'}`}
-                          >
-                            <span className="font-mono text-slate-500 font-bold shrink-0 mt-1">#{kIdx + 1}</span>
-                            <div className={`px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 max-w-[85%] border text-[10px] leading-snug ${
-                              kick.isGoal
-                                ? 'bg-emerald-950/20 border-emerald-500/35 text-slate-200'
-                                : 'bg-red-950/15 border-red-500/30 text-slate-300'
-                            }`}>
-                              {kick.isGoal ? (
-                                <span className="text-emerald-400 shrink-0">⚽</span>
-                              ) : (
-                                <span className="text-red-500 shrink-0">❌</span>
-                              )}
-                              <span className="wrap-break-word">
-                                {kick.kickerName} - {kick.isGoal ? 'GOL!' : 'PERDEU!'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <h4 className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center">
-                  Estatísticas do Jogo
-                </h4>
-                
-                <div className="flex flex-col gap-3.5 bg-slate-950/40 rounded-2xl p-4 border border-slate-800/80">
-                  <div>
-                    <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                      <span>{result.stats.possessionA}%</span>
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider">Posse de Bola</span>
-                      <span>{result.stats.possessionB}%</span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                      <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${result.stats.possessionA}%` }} />
-                      <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${result.stats.possessionB}%` }} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                      <span>{result.stats.shotsA}</span>
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider">Finalizações</span>
-                      <span>{result.stats.shotsB}</span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                      <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${(result.stats.shotsA / (result.stats.shotsA + result.stats.shotsB || 1)) * 100}%` }} />
-                      <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${(result.stats.shotsB / (result.stats.shotsA + result.stats.shotsB || 1)) * 100}%` }} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                      <span>{result.stats.foulsA}</span>
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider">Faltas Cometidas</span>
-                      <span>{result.stats.foulsB}</span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                      <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${(result.stats.foulsA / (result.stats.foulsA + result.stats.foulsB || 1)) * 100}%` }} />
-                      <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${(result.stats.foulsB / (result.stats.foulsA + result.stats.foulsB || 1)) * 100}%` }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {liveSimulation && (() => {
-        const isFinished = liveSimulation.currentMinute >= maxMinute;
-        const userMatch = liveSimulation.matches.find(
-          m => m.teamA.id === 'user_team' || m.teamB.id === 'user_team'
-        );
-        const mainMatch = userMatch || liveSimulation.matches[0];
-        if (!mainMatch) return null;
-
-        const { scoreA, scoreB, liveEvents } = getLiveScore(
-          mainMatch.result.events,
-          liveSimulation.currentMinute,
-          mainMatch.teamA.name,
-          mainMatch.teamB.name
-        );
-
-        const hasPenalties = mainMatch.result.penalties !== undefined;
-        const shootout = mainMatch.result.penalties;
-
-        if (isFinished && hasPenalties && showShootoutState !== 'completed') {
-          const kicks = shootout!.kicks;
-          const livePenScoreA = penaltyKicksHistory.filter(k => k.teamId === 'A' && k.isGoal).length;
-          const livePenScoreB = penaltyKicksHistory.filter(k => k.teamId === 'B' && k.isGoal).length;
-          const totalRoundsToShow = Math.max(5, Math.ceil(kicks.length / 2));
-          const currentKick = kicks[activePenaltyKickIndex];
-
-          const getKickStatus = (team: 'A' | 'B', r: number) => {
-            const flatIndex = team === 'A' ? r * 2 : r * 2 + 1;
-            const simulatedKick = kicks[flatIndex];
-            if (!simulatedKick) return 'empty';
-            if (flatIndex < penaltyKicksHistory.length) {
-              return simulatedKick.isGoal ? 'goal' : 'miss';
-            }
-            if (flatIndex === activePenaltyKickIndex && !isPenaltyKicking && !showPenaltyResultEffect) {
-              return 'active';
-            }
-            return 'empty';
-          };
-
-          const renderDot = (status: 'goal' | 'miss' | 'active' | 'empty', idx: number) => {
-            switch (status) {
-              case 'goal':
-                return (
-                  <div key={idx} className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-500 border border-emerald-400 shadow-lg shadow-emerald-500/20 flex items-center justify-center font-bold text-slate-950 text-[10px] sm:text-xs shrink-0 animate-in zoom-in duration-300">
-                    ⚽
-                  </div>
-                );
-              case 'miss':
-                return (
-                  <div key={idx} className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-500 border border-red-400 shadow-lg shadow-red-500/20 flex items-center justify-center font-bold text-white text-[10px] sm:text-xs shrink-0 animate-in zoom-in duration-300">
-                    ❌
-                  </div>
-                );
-              case 'active':
-                return (
-                  <div key={idx} className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-800 border-2 border-amber-500 animate-pulse shrink-0" />
-                );
-              case 'empty':
-              default:
-                return (
-                  <div key={idx} className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-850 border border-slate-700 shrink-0" />
-                );
-            }
-          };
-
-          return (
-            <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-xl z-50 p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
-              <div className="max-w-3xl mx-auto w-full flex flex-col min-h-full justify-between gap-4 py-2 sm:py-4">
-                
-                <div className="text-center flex flex-col items-center">
-                  <span className="text-[10px] bg-red-500/10 border border-red-500/20 px-3 py-0.5 rounded-full text-red-500 font-extrabold uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
-                    <span className="w-1 h-1 rounded-full bg-red-500 animate-ping" />
-                    Decisão por Pênaltis
-                  </span>
-                  <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight mt-2">
-                    Disputa de Pênaltis
-                  </h2>
-                  <p className="text-slate-400 text-[10px] sm:text-xs mt-0.5">
-                    Placar do tempo normal: {scoreA} x {scoreB}
-                  </p>
-                </div>
-
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl relative overflow-hidden flex flex-col gap-4">
-                  
-                  <div className="flex items-center justify-between gap-4 border-b border-slate-800 pb-4">
-                    <div className="flex flex-col items-center flex-1 min-w-0">
-                      <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-full ${mainMatch.teamA.logoColor} border border-white/10 shadow-lg flex items-center justify-center text-white font-black text-base sm:text-lg`}>
-                        {mainMatch.teamA.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span className="text-xs sm:text-sm font-black text-white mt-1.5 text-center truncate w-full">
-                        {mainMatch.teamA.name}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center shrink-0 px-2 sm:px-4">
-                      <div className="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight flex items-center gap-3">
-                        <span className="text-emerald-400">{livePenScoreA}</span>
-                        <span className="text-slate-700 text-xl font-normal">:</span>
-                        <span className="text-emerald-400">{livePenScoreB}</span>
-                      </div>
-                      <span className="text-[8px] sm:text-[9px] text-slate-500 font-bold uppercase mt-1 tracking-wider">Pênaltis</span>
-                    </div>
-
-                    <div className="flex flex-col items-center flex-1 min-w-0">
-                      <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-full ${mainMatch.teamB.logoColor} border border-white/10 shadow-lg flex items-center justify-center text-white font-black text-base sm:text-lg`}>
-                        {mainMatch.teamB.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span className="text-xs sm:text-sm font-black text-white mt-1.5 text-center truncate w-full">
-                        {mainMatch.teamB.name}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3 bg-slate-950/40 border border-slate-850 rounded-2xl p-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-800/60 pb-2.5">
-                      <span className="text-[9px] sm:text-[10px] text-slate-400 font-extrabold uppercase tracking-wider shrink-0 w-20 sm:w-24 truncate">
-                        {mainMatch.teamA.name}
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Array.from({ length: totalRoundsToShow }).map((_, r) => 
-                          renderDot(getKickStatus('A', r), r)
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <span className="text-[9px] sm:text-[10px] text-slate-400 font-extrabold uppercase tracking-wider shrink-0 w-20 sm:w-24 truncate">
-                        {mainMatch.teamB.name}
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Array.from({ length: totalRoundsToShow }).map((_, r) => 
-                          renderDot(getKickStatus('B', r), r)
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {showShootoutState === 'active' && currentKick && (
-                    <div className="relative">
-                      {isPenaltyKicking ? (
-                        <div className="h-28 bg-slate-950/60 border border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-2 animate-pulse">
-                          <div className="w-8 h-8 border-3 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
-                          <span className="text-[10px] text-amber-500 font-black uppercase tracking-wider">
-                            Cobrando Pênalti...
-                          </span>
-                        </div>
-                      ) : showPenaltyResultEffect ? (
-                        <div className="h-28 bg-slate-950/60 border border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-2 p-3 text-center animate-in zoom-in duration-300">
-                          {currentKick.isGoal ? (
-                            <>
-                              <span className="text-3xl font-black text-emerald-400 tracking-wider animate-bounce">
-                                GOL!
-                              </span>
-                              <p className="text-[10px] text-slate-200 font-medium mt-0.5">
-                                {currentKick.kickerName} cobrou com classe e converteu!
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <span className="text-3xl font-black text-red-500 tracking-wider animate-bounce">
-                                PERDEU!
-                              </span>
-                              <p className="text-[10px] text-slate-200 font-medium mt-0.5">
-                                {currentKick.gkName} defendeu ou a bola foi para fora!
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-7 items-center bg-slate-950/50 border border-slate-800/80 rounded-2xl overflow-hidden min-h-24 h-24">
-                          
-                          <div className="col-span-3 p-2 flex flex-col items-center text-center">
-                            <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-black uppercase tracking-wider mb-1">
-                              Batedor
-                            </span>
-                            <div className="text-[10px] sm:text-xs font-black text-white truncate max-w-full">{currentKick.kickerName}</div>
-                            <div className={`text-[7px] sm:text-[8px] font-black px-1.5 py-0.5 rounded uppercase mt-1 ${
-                              currentKick.teamId === 'A' ? 'bg-amber-500 text-slate-950' : 'bg-blue-500 text-white'
-                            }`}>
-                              {currentKick.teamId === 'A' ? mainMatch.teamA.name.slice(0, 3) : mainMatch.teamB.name.slice(0, 3)}
-                            </div>
-                          </div>
-
-                          <div className="col-span-1 py-3 flex flex-col items-center justify-center border-x border-slate-800/60 min-h-full bg-slate-950/80">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">VS</span>
-                          </div>
-
-                          <div className="col-span-3 p-2 flex flex-col items-center text-center">
-                            <span className="text-[8px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-black uppercase tracking-wider mb-1">
-                              Goleiro
-                            </span>
-                            <div className="text-[10px] sm:text-xs font-black text-white truncate max-w-full">{currentKick.gkName}</div>
-                            <div className={`text-[7px] sm:text-[8px] font-black px-1.5 py-0.5 rounded uppercase mt-1 ${
-                              currentKick.teamId === 'A' ? 'bg-blue-500 text-white' : 'bg-amber-500 text-slate-950'
-                            }`}>
-                              {currentKick.teamId === 'A' ? mainMatch.teamB.name.slice(0, 3) : mainMatch.teamA.name.slice(0, 3)}
-                            </div>
-                          </div>
-
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {showShootoutState === 'not_started' && (
-                    <div className="h-28 bg-slate-950/60 border border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-1.5 p-4 text-center">
-                      <span className="text-sm font-black text-white uppercase tracking-tight">Decisão Dramática!</span>
-                      <p className="text-slate-400 text-[10px] max-w-sm">
-                        O jogo terminou empatado e irá para a disputa de pênaltis. Prepare o seu coração!
-                      </p>
-                    </div>
-                  )}
-
-                </div>
-
-                <div className="flex flex-wrap justify-center gap-4">
-                  {showShootoutState === 'not_started' ? (
-                    <>
-                      <button
-                        onClick={() => setShowShootoutState('active')}
-                        className="px-6 py-3 bg-linear-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 shadow-lg shadow-amber-500/10 animate-bounce-slow"
-                      >
-                        Iniciar Decisão por Pênaltis
-                      </button>
-                      <button
-                        onClick={() => {
-                          setPenaltyKicksHistory(kicks);
-                          setActivePenaltyKickIndex(kicks.length);
-                          setShowShootoutState('completed');
-                        }}
-                        className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-750"
-                      >
-                        Pular para o Placar Final
-                      </button>
-                    </>
-                  ) : showShootoutState === 'active' ? (
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl text-slate-400 font-extrabold uppercase tracking-wider">
-                        {isPenaltyKicking
-                          ? 'Simulando cobrança...'
-                          : showPenaltyResultEffect
-                          ? 'Visualizando resultado...'
-                          : 'Preparando cobrador...'}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setPenaltyKicksHistory(kicks);
-                          setActivePenaltyKickIndex(kicks.length);
-                          setShowShootoutState('completed');
-                        }}
-                        className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-750"
-                      >
-                        Pular para o Placar Final
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-
-              </div>
-            </div>
-          );
-        }
-
-
-        const currentMinuteEvents = mainMatch.result.events.filter(
-          e => e.minute === liveSimulation.currentMinute
-        );
-        const goalEvent = currentMinuteEvents.find(e => e.type === 'goal');
-        const isGoalAJustScored = goalEvent?.teamName === mainMatch.teamA.name;
-        const isGoalBJustScored = goalEvent?.teamName === mainMatch.teamB.name;
-
-        const isOpponentGoalA = isGoalAJustScored && mainMatch.teamA.id !== 'user_team';
-        const isOpponentGoalB = isGoalBJustScored && mainMatch.teamB.id !== 'user_team';
-        const isOpponentGoalJustScored = isOpponentGoalA || isOpponentGoalB;
-
-        const scoreAColor = isGoalAJustScored
-          ? (isOpponentGoalA ? 'text-red-500 animate-bounce scale-125' : 'text-emerald-400 animate-bounce scale-125')
-          : 'text-white';
-        const scoreBColor = isGoalBJustScored
-          ? (isOpponentGoalB ? 'text-red-500 animate-bounce scale-125' : 'text-emerald-400 animate-bounce scale-125')
-          : 'text-white';
-
-        const goalBadgeBg = isOpponentGoalJustScored
-          ? 'bg-red-600 border-red-500 text-white'
-          : 'bg-emerald-500 border-emerald-400 text-slate-950';
-
-        const finalPossA = mainMatch.result.stats.possessionA;
-        const livePossA = liveSimulation.currentMinute === 0
-          ? 50
-          : Math.min(75, Math.max(25, Math.round(50 + (finalPossA - 50) * Math.min(1, liveSimulation.currentMinute / 20) + Math.sin(liveSimulation.currentMinute * 0.4) * 4)));
-        const livePossB = 100 - livePossA;
-
-        const liveShotsA = liveEvents.filter(e => e.teamName === mainMatch.teamA.name && (e.type === 'shot' || e.type === 'goal')).length;
-        const liveShotsB = liveEvents.filter(e => e.teamName === mainMatch.teamB.name && (e.type === 'shot' || e.type === 'goal')).length;
-
-        const liveFoulsA = liveEvents.filter(e => e.teamName === mainMatch.teamA.name && e.type === 'foul').length;
-        const liveFoulsB = liveEvents.filter(e => e.teamName === mainMatch.teamB.name && e.type === 'foul').length;
-
-        const otherMatches = liveSimulation.matches.filter(m => m.id !== mainMatch.id);
-
-        return (
-          <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-xl z-50 p-6 overflow-y-auto animate-in fade-in duration-200">
-            <div className="max-w-4xl mx-auto w-full flex flex-col min-h-full justify-between gap-4">
-              
-              <div className="text-center flex flex-col items-center">
-                <span className="text-[10px] bg-slate-800 px-3 py-1 rounded-md text-amber-500 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
-                  {liveSimulation.title}
-                </span>
-                
-                <div className="mt-2 flex items-center justify-center gap-4">
-                  <div className="text-5xl font-black text-white font-mono tracking-tight flex items-center gap-1">
-                    <span>{liveSimulation.currentMinute}</span>
-                    <span className="text-amber-500 animate-pulse">&apos;</span>
-                  </div>
-                  {isFinished && (
-                    <span className="text-xs bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-extrabold px-2.5 py-1 rounded-lg uppercase tracking-wider animate-bounce">
-                      Fim de Jogo
-                    </span>
-                  )}
-                </div>
-                
-                <div className="w-full max-w-md bg-slate-800 h-1.5 rounded-full overflow-hidden mt-3 p-0.5 border border-slate-700">
-                  <div
-                    className="bg-amber-500 h-full rounded-full transition-all duration-100"
-                    style={{ width: `${(liveSimulation.currentMinute / maxMinute) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-2">
-                
-                <div className="md:col-span-2 flex flex-col gap-4">
-                  
-                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col gap-4 mb-6">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl" />
-                    
-                    <div className="flex items-center justify-between gap-4">
-                      
-                      <div className="flex flex-col items-center flex-1 min-w-0">
-                        <div className={`w-14 h-14 rounded-full ${mainMatch.teamA.logoColor} border border-white/10 shadow-lg flex items-center justify-center text-white font-black text-lg`}>
-                          {mainMatch.teamA.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
-                          {mainMatch.teamA.name}
-                        </span>
-                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase mt-1">
-                          {mainMatch.teamA.country}
-                        </span>
-                      </div>
-                      
-                      <div className="flex flex-col items-center justify-center shrink-0 px-4 relative">
-                        <div className="text-5xl font-black font-mono tracking-tight flex items-center gap-3">
-                          <span className={`${scoreAColor} transition-all duration-300`}>
-                            {scoreA}
-                            {hasPenalties && showShootoutState === 'completed' && (
-                              <span className="text-[10px] text-slate-400 font-normal block text-center mt-1">({shootout!.goalsA})</span>
-                            )}
-                          </span>
-                          <span className="text-slate-600 text-xl font-normal">:</span>
-                          <span className={`${scoreBColor} transition-all duration-300`}>
-                            {scoreB}
-                            {hasPenalties && showShootoutState === 'completed' && (
-                              <span className="text-[10px] text-slate-400 font-normal block text-center mt-1">({shootout!.goalsB})</span>
-                            )}
-                          </span>
-                        </div>
-                        {goalEvent && (
-                          <div className={`absolute -top-6 ${goalBadgeBg} border text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest animate-bounce shadow-lg`}>
-                            GOL!
-                          </div>
-                        )}
-                        <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-extrabold uppercase mt-2 tracking-wider">
-                          Ao Vivo
-                        </span>
-                      </div>
-                      
-                      <div className="flex flex-col items-center flex-1 min-w-0">
-                        <div className={`w-14 h-14 rounded-full ${mainMatch.teamB.logoColor} border border-white/10 shadow-lg flex items-center justify-center text-white font-black text-lg`}>
-                          {mainMatch.teamB.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
-                          {mainMatch.teamB.name}
-                        </span>
-                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase mt-1">
-                          {mainMatch.teamB.country}
-                        </span>
-                      </div>
-                      
-                    </div>
-                  </div>
-                  
-                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col gap-4">
-                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center">
-                      Estatísticas em Tempo Real
-                    </span>
-                    
-                    <div className="flex flex-col gap-4">
-                      <div>
-                        <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                          <span>{livePossA}%</span>
-                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">Posse de Bola</span>
-                          <span>{livePossB}%</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                          <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${livePossA}%` }} />
-                          <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${livePossB}%` }} />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                          <span>{liveShotsA}</span>
-                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">Finalizações</span>
-                          <span>{liveShotsB}</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                          <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${(liveShotsA / (liveShotsA + liveShotsB || 1)) * 100}%` }} />
-                          <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${(liveShotsB / (liveShotsA + liveShotsB || 1)) * 100}%` }} />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                          <span>{liveFoulsA}</span>
-                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">Faltas</span>
-                          <span>{liveFoulsB}</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                          <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${(liveFoulsA / (liveFoulsA + liveFoulsB || 1)) * 100}%` }} />
-                          <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${(liveFoulsB / (liveFoulsA + liveFoulsB || 1)) * 100}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                </div>
-                
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-100">
-                  <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center border-b border-slate-800 pb-2 mb-3">
-                    Lances do Jogo
-                  </span>
-                  
-                  <div
-                    ref={feedRef}
-                    className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1 scroll-smooth"
-                  >
-                    {liveEvents.length > 0 ? (
-                      liveEvents.map((ev, eIdx) => {
-                        const isTeamA = ev.teamName === mainMatch.teamA.name;
-                        return (
-                          <div
-                            key={`${eIdx}-${ev.minute}`}
-                            className={`flex items-start text-xs gap-2 ${isTeamA ? 'flex-row' : 'flex-row-reverse text-right'}`}
-                          >
-                            <span className="font-mono text-amber-500 font-bold shrink-0 mt-1">{ev.minute}&apos;</span>
-                            <div className={`px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 max-w-[85%] border text-[10px] leading-snug ${
-                              ev.type === 'goal'
-                                ? 'bg-emerald-950/20 border-emerald-500/35 text-slate-200'
-                                : ev.type === 'foul'
-                                ? 'bg-yellow-950/15 border-yellow-500/30 text-slate-300'
-                                : 'bg-slate-950/30 border-slate-800 text-slate-300'
-                            }`}>
-                              {ev.type === 'goal' && <span className="text-emerald-400 shrink-0">⚽</span>}
-                              {ev.type === 'shot' && <span className="text-blue-400 shrink-0">🎯</span>}
-                              {ev.type === 'foul' && <WhistleIcon />}
-                              <span className="wrap-break-word">{ev.description}</span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center text-xs text-slate-500 font-medium">
-                        Jogo truncado no meio de campo. Sem lances perigosos ainda.
-                      </div>
-                    )}
-                    {hasPenalties && showShootoutState === 'completed' && (
-                      <div className="mt-4 border-t border-slate-800 pt-4 flex flex-col gap-2.5 text-left">
-                        <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center mb-1 block">
-                          Decisão por Pênaltis ({shootout!.goalsA} - {shootout!.goalsB})
-                        </span>
-                        {shootout!.kicks.map((kick, kIdx) => {
-                          const isTeamA = kick.teamId === 'A';
-                          return (
-                            <div
-                              key={kIdx}
-                              className={`flex items-start text-xs gap-2 ${isTeamA ? 'flex-row' : 'flex-row-reverse text-right'}`}
-                            >
-                              <span className="font-mono text-slate-500 font-bold shrink-0 mt-1">#{kIdx + 1}</span>
-                              <div className={`px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 max-w-[85%] border text-[10px] leading-snug ${
-                                kick.isGoal
-                                  ? 'bg-emerald-950/20 border-emerald-500/35 text-slate-200'
-                                  : 'bg-red-950/15 border-red-500/30 text-slate-300'
-                              }`}>
-                                {kick.isGoal ? (
-                                  <span className="text-emerald-400 shrink-0">⚽</span>
-                                ) : (
-                                  <span className="text-red-500 shrink-0">❌</span>
-                                )}
-                                <span className="wrap-break-word">
-                                  {kick.kickerName} - {kick.isGoal ? 'GOL!' : 'PERDEU!'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-              </div>
-
-              {otherMatches.length > 0 && (
-                <div className="border-t border-slate-800/80 pt-3">
-                  <span className="text-[9px] text-slate-500 font-extrabold uppercase tracking-widest block mb-2 text-center">
-                    Outros confrontos da Rodada
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                    {otherMatches.map((m, idx) => {
-                      const { scoreA: oScoreA, scoreB: oScoreB } = getLiveScore(
-                        m.result.events,
-                        liveSimulation.currentMinute,
-                        m.teamA.name,
-                        m.teamB.name
-                      );
-                      const hasJustScored = m.result.events.some(
-                        e => e.type === 'goal' && e.minute === liveSimulation.currentMinute
-                      );
-                      const matchGroupKey = m.id.split('_')[1];
-                      let userGroupKey = '';
-                      if (store.groups) {
-                        for (const [gKey, teams] of Object.entries(store.groups)) {
-                          if (teams.some(t => t.id === 'user_team')) {
-                            userGroupKey = gKey;
-                            break;
-                          }
-                        }
-                      }
-                      const isSameGroup = matchGroupKey === userGroupKey;
-                      return (
-                        <div
-                          key={m.id || idx}
-                          className={`p-2 bg-slate-900 border rounded-xl flex flex-col gap-0.5 items-center justify-center transition-all duration-300 relative ${
-                            hasJustScored
-                              ? 'bg-emerald-950/40 border-emerald-500 scale-105 animate-pulse'
-                              : isSameGroup
-                              ? 'bg-amber-950/15 border-amber-500/50 shadow-lg shadow-amber-500/5 scale-105'
-                              : 'border-slate-800/60'
-                          }`}
-                        >
-                          {isSameGroup && (
-                            <span className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 text-[7px] font-black px-1 rounded uppercase tracking-wider">
-                              Grupo {matchGroupKey}
-                            </span>
-                          )}
-                          <span className="text-[9px] text-slate-400 font-bold truncate max-w-full">
-                            {m.teamA.name.slice(0, 3).toUpperCase()} x {m.teamB.name.slice(0, 3).toUpperCase()}
-                          </span>
-                          <span className="text-xs font-black text-white font-mono">
-                            {oScoreA} - {oScoreB}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-center gap-4 py-2">
-                {!isFinished ? (
-                  <button
-                    onClick={() => {
-                      setLiveSimulation(prev => {
-                        if (!prev) return null;
-                        return {
-                          ...prev,
-                          currentMinute: maxMinute
-                        };
-                      });
-                    }}
-                    className="px-6 py-3 bg-slate-850 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-850 hover:border-slate-700"
-                  >
-                    Pular Simulacao
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      liveSimulation.onComplete();
-                    }}
-                    className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95"
-                  >
-                    Fechar Painel
-                  </button>
-                )}
-              </div>
-
-            </div>
-          </div>
-        );
-      })()}
+      {liveSimulation && (
+        <LiveSimulationOverlay
+          liveSimulation={liveSimulation}
+          setLiveSimulation={setLiveSimulation}
+          maxMinute={maxMinute}
+        />
+      )}
     </div>
   );
 }

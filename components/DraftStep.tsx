@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import {
   Coins,
-  Trash2,
   Settings,
   RotateCcw,
   Plus,
@@ -12,8 +11,9 @@ import {
 } from 'lucide-react';
 import { useGameStore } from '../hooks/useGameStore';
 import { marketPlayers } from '../utils/players';
-import { canBuyPlayer } from '../utils/pricing';
-import { SquadSlot, PlayStyle } from '../app/types/game';
+import { SquadSlot, PlayStyle } from '@/types/game';
+import { DraftSquadSlot } from './DraftSquadSlot';
+import { MarketPlayerRow } from './MarketPlayerRow';
 
 interface DraftStepProps {
   onReset: () => void;
@@ -54,7 +54,7 @@ const playStyleLabels: Record<PlayStyle, string> = {
   balanced: 'Equilibrado',
 };
 
-export function DraftStep({ onReset, onCompleteDraft }: DraftStepProps) {
+export function DraftStep({ onReset, onCompleteDraft }: Readonly<DraftStepProps>) {
   const store = useGameStore();
   const [activeSlot, setActiveSlot] = useState<SquadSlot | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -181,68 +181,19 @@ export function DraftStep({ onReset, onCompleteDraft }: DraftStepProps) {
           <div className="absolute inset-x-8 top-0 h-20 border-b border-x border-white/10 mx-auto max-w-50" />
           <div className="absolute inset-x-8 bottom-0 h-20 border-t border-x border-white/10 mx-auto max-w-50" />
           <div className="absolute inset-0">
-            {store.squad.map((slot) => {
-              const pos = SLOT_POSITIONS[slot.id] || { top: '50%', left: '50%' };
-              const isSlotActive = activeSlot?.id === slot.id;
-              let playerCardStyles = 'bg-linear-to-b from-orange-700 to-amber-900 border-orange-600 text-orange-100';
-              if (slot.player) {
-                if (slot.player.overall >= 80) {
-                  playerCardStyles = 'bg-linear-to-b from-amber-400 to-yellow-600 border-amber-300 text-amber-950';
-                } else if (slot.player.overall >= 74) {
-                  playerCardStyles = 'bg-linear-to-b from-zinc-300 to-zinc-500 border-zinc-200 text-zinc-950';
-                }
-              }
-              return (
-                <div
-                  key={slot.id}
-                  className="absolute transition-all duration-300"
-                  style={{
-                    top: pos.top,
-                    left: pos.left,
-                    transform: 'translate(-50%, -50%)',
-                  }}
-                >
-                  {slot.player ? (
-                    <div className="relative group flex flex-col items-center">
-                      <button
-                        onClick={() => setActiveSlot(slot)}
-                        className={`w-13 h-17 sm:w-16 sm:h-20 rounded-lg flex flex-col items-center justify-between p-1 sm:p-1.5 shadow-xl border-2 transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 ${playerCardStyles}`}
-                      >
-                        <span className="text-[10px] sm:text-xs font-black leading-none">{slot.player.overall}</span>
-                        <span className="text-[7px] sm:text-[9px] font-black truncate w-full text-center leading-none">
-                          {slot.player.name.split(' ').pop()}
-                        </span>
-                        <span className="text-[5px] sm:text-[7px] font-extrabold uppercase leading-none opacity-80">
-                          {slot.label}
-                        </span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          store.sellPlayer(slot.id);
-                          if (activeSlot?.id === slot.id) setActiveSlot(null);
-                        }}
-                        className="absolute -top-1.5 -right-1.5 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-md active:scale-90 cursor-pointer"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setActiveSlot(slot)}
-                      className={`w-11 h-11 sm:w-14 sm:h-14 rounded-full border-2 border-dashed flex flex-col items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer ${
-                        isSlotActive
-                          ? 'border-amber-400 bg-amber-400/20 text-amber-300 scale-105 shadow-lg shadow-amber-500/20'
-                          : 'border-white/40 bg-black/20 text-white/60 hover:border-white/60 hover:bg-black/30'
-                      }`}
-                    >
-                      <Plus className="w-3 h-3 sm:w-4 sm:h-4 mb-0.5" />
-                      <span className="text-[6px] sm:text-[8px] font-extrabold uppercase">{slot.label}</span>
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+            {store.squad.map((slot) => (
+              <DraftSquadSlot
+                key={slot.id}
+                slot={slot}
+                isSlotActive={activeSlot?.id === slot.id}
+                onActiveSlotSet={setActiveSlot}
+                onSellPlayer={(slotId) => {
+                  store.sellPlayer(slotId);
+                  if (activeSlot?.id === slotId) setActiveSlot(null);
+                }}
+                pos={SLOT_POSITIONS[slot.id] || { top: '50%', left: '50%' }}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -316,81 +267,19 @@ export function DraftStep({ onReset, onCompleteDraft }: DraftStepProps) {
             </div>
             <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 min-h-75">
               {filteredMarket.length > 0 ? (
-                filteredMarket.map((player) => {
-                  const isAlreadyOwned = store.squad.some(s => s.player?.id === player.id);
-                  const fitsBudget = store.budget >= player.price;
-                  const otherSlotsOwned = store.squad.filter(s => s.player !== null && s.id !== activeSlot.id).length;
-                  const checkCanBuy = canBuyPlayer(player.price, otherSlotsOwned, store.budget);
-                  let marketPlayerBadgeStyles = 'bg-orange-900/20 border-orange-700 text-orange-400';
-                  if (player.overall >= 80) {
-                    marketPlayerBadgeStyles = 'bg-amber-400/20 border-amber-400 text-amber-400';
-                  } else if (player.overall >= 74) {
-                    marketPlayerBadgeStyles = 'bg-zinc-400/20 border-zinc-400 text-zinc-300';
-                  }
-                  const isOutOfBudget = !fitsBudget;
-                  const isReserveBlocked = !checkCanBuy;
-                  let marketPlayerAction;
-                  if (isAlreadyOwned) {
-                    marketPlayerAction = (
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                        Contratado
-                      </span>
-                    );
-                  } else if (isOutOfBudget) {
-                    marketPlayerAction = (
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-red-500">
-                        Sem Saldo
-                      </span>
-                    );
-                  } else if (isReserveBlocked) {
-                    marketPlayerAction = (
-                      <span
-                        className="text-[9px] font-bold uppercase tracking-wider text-amber-500 text-right cursor-help"
-                        title="A compra deste jogador impossibilitará contratar o restante do time com o saldo atual."
-                      >
-                        Bloqueado (Reserva)
-                      </span>
-                    );
-                  } else {
-                    marketPlayerAction = (
-                      <button
-                        onClick={() => {
-                          store.buyPlayer(player, activeSlot.id);
-                          setActiveSlot(null);
-                        }}
-                        className="px-3 py-1.5 bg-linear-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-950 text-xs font-black tracking-wider uppercase rounded-lg transition-all duration-200 active:scale-95 cursor-pointer"
-                      >
-                        Comprar
-                      </button>
-                    );
-                  }
-                  return (
-                    <div
-                      key={player.id}
-                      className={`p-3 bg-slate-800/60 border rounded-xl flex items-center justify-between gap-3 ${
-                        isAlreadyOwned ? 'border-slate-800 opacity-60' : 'border-slate-700/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs border ${marketPlayerBadgeStyles}`}>
-                          {player.overall}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-white text-sm truncate">{player.name}</h4>
-                          <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                            {player.club} • {player.nationality}
-                          </p>
-                          <p className="text-yellow-400 text-xs font-black tracking-wide mt-1">
-                            {player.price.toLocaleString('pt-BR')} moedas
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        {marketPlayerAction}
-                      </div>
-                    </div>
-                  );
-                })
+                filteredMarket.map((player) => (
+                  <MarketPlayerRow
+                    key={player.id}
+                    player={player}
+                    activeSlot={activeSlot}
+                    squad={store.squad}
+                    budget={store.budget}
+                    onBuyPlayer={(p, slotId) => {
+                      store.buyPlayer(p, slotId);
+                      setActiveSlot(null);
+                    }}
+                  />
+                ))
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                   <p className="text-sm font-semibold">Nenhum jogador encontrado</p>

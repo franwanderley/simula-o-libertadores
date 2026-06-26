@@ -1,5 +1,5 @@
-import { OpponentTeam } from '../app/types/game';
-import { MatchResult } from '../utils/matchSimulator';
+import { OpponentTeam, MatchResult } from '@/types/game';
+import { getMatchRound } from '../utils/tournament';
 
 interface GroupMatchesListProps {
   gKey: string;
@@ -8,16 +8,6 @@ interface GroupMatchesListProps {
   currentGroupRound: number;
   onSelectMatch: (match: { id: string; teamA: OpponentTeam; teamB: OpponentTeam }) => void;
 }
-
-const getMatchRound = (i: number, j: number): number => {
-  if ((i === 0 && j === 1) || (i === 2 && j === 3)) return 1;
-  if ((i === 0 && j === 2) || (i === 1 && j === 3)) return 2;
-  if ((i === 0 && j === 3) || (i === 1 && j === 2)) return 3;
-  if ((i === 1 && j === 0) || (i === 3 && j === 2)) return 4;
-  if ((i === 2 && j === 0) || (i === 3 && j === 1)) return 5;
-  if ((i === 3 && j === 0) || (i === 2 && j === 1)) return 6;
-  return 1;
-};
 
 export function GroupMatchesList({
   gKey,

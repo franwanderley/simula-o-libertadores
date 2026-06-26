@@ -30,6 +30,7 @@ export interface SquadSlot {
   position: PlayerPosition;
   player: Player | null;
 }
+
 export type TeamTier = 'very_good' | 'good' | 'medium' | 'bad';
 
 export interface OpponentTeam {
@@ -66,3 +67,66 @@ export interface KnockoutMatch {
   scores?: { home: number; away: number }[];
 }
 
+export interface SimPlayer {
+  name: string;
+  overall: number;
+  position: PlayerPosition;
+}
+
+export interface SimTeam {
+  name: string;
+  overall: number;
+  players: SimPlayer[];
+  chemistry: number;
+  formation: string;
+  tactic: 'Muito Defensiva' | 'Defensiva' | 'Neutra' | 'Ofensiva' | 'Muito Ofensiva';
+}
+
+export interface MatchEvent {
+  minute: number;
+  type: 'goal' | 'shot' | 'foul';
+  teamName: string;
+  description: string;
+  scorer?: string;
+}
+
+export interface MatchStats {
+  possessionA: number;
+  possessionB: number;
+  shotsA: number;
+  shotsB: number;
+  foulsA: number;
+  foulsB: number;
+}
+
+export interface PenaltyKick {
+  teamId: 'A' | 'B';
+  kickerName: string;
+  kickerOverall: number;
+  gkName: string;
+  gkOverall: number;
+  probability: number;
+  isGoal: boolean;
+  scoreA: number;
+  scoreB: number;
+}
+
+export interface PenaltyShootoutResult {
+  winnerId: string;
+  goalsA: number;
+  goalsB: number;
+  kicks: PenaltyKick[];
+}
+
+export interface MatchResult {
+  goalsA: number;
+  goalsB: number;
+  events: MatchEvent[];
+  stats: MatchStats;
+  penalties?: PenaltyShootoutResult;
+}
+
+export interface UserEliminationStatus {
+  eliminatedAt: string;
+  standingsPosition?: number;
+}

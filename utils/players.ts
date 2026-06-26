@@ -1,4 +1,4 @@
-import { Player, PlayerPosition } from '../app/types/game';
+import { Player, PlayerPosition } from '@/types/game';
 import { calculatePlayerPrice } from './pricing';
 
 const rawPlayers = [
