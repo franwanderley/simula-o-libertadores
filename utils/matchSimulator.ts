@@ -4,58 +4,15 @@ import {
   SimTeam,
   MatchEvent,
   MatchResult,
+  Tactic,
 } from "@/types/game";
-import { FORMATIONS } from "./formations";
+import { FORMATIONS, FORMATION_POSITIONS } from "./formations";
 import { goalTemplates, shotTemplates, foulTemplates } from "./matchNarratives";
-
-const FORMATION_POSITIONS: Record<string, PlayerPosition[]> = {
-  "4-4-2": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "FW", "FW"],
-  "4-3-3": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "FW", "FW", "FW"],
-  "3-5-2": ["GK", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "MF", "FW", "FW"],
-  "5-3-2": ["GK", "DF", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "FW", "FW"],
-  "4-2-3-1": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "MF", "FW"],
-  "3-4-3": ["GK", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "FW", "FW", "FW"],
-  "4-5-1": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "MF", "FW"],
-  "4-3-2-1": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "FW", "FW", "FW"],
-  "5-4-1": ["GK", "DF", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "FW"],
-};
+import { SURNAMES } from "./constants";
 
 function getPositionsFromFormation(formation: string): PlayerPosition[] {
   return FORMATION_POSITIONS[formation] || FORMATION_POSITIONS["4-4-2"];
 }
-
-const surnames = [
-  "Silva",
-  "Santos",
-  "Oliveira",
-  "Souza",
-  "Rodrigues",
-  "Ferreira",
-  "Alves",
-  "Pereira",
-  "Gomes",
-  "Ribeiro",
-  "Fernandez",
-  "Gonzalez",
-  "Rodriguez",
-  "Lopez",
-  "Martinez",
-  "Gomez",
-  "Diaz",
-  "Sanchez",
-  "Perez",
-  "Romero",
-  "Alvarez",
-  "Ruiz",
-  "Ramirez",
-  "Flores",
-  "Acosta",
-  "Herrera",
-  "Medina",
-  "Vargas",
-  "Castro",
-  "Guzman",
-];
 
 export function getSimTeamFromOpponent(opponent: {
   name: string;
@@ -75,25 +32,20 @@ export function getSimTeamFromOpponent(opponent: {
 
   const formation = FORMATIONS[randomVal % FORMATIONS.length];
 
-  let tactic:
-    | "Muito Defensiva"
-    | "Defensiva"
-    | "Neutra"
-    | "Ofensiva"
-    | "Muito Ofensiva";
+  let tactic: Tactic;
   if (opponent.tier === "very_good") {
-    tactic = randomVal % 2 === 0 ? "Ofensiva" : "Muito Ofensiva";
+    tactic = randomVal % 2 === 0 ? Tactic.Offensive : Tactic.VeryOffensive;
   } else if (opponent.tier === "good") {
-    tactic = randomVal % 2 === 0 ? "Ofensiva" : "Neutra";
+    tactic = randomVal % 2 === 0 ? Tactic.Offensive : Tactic.Neutral;
   } else if (opponent.tier === "medium") {
-    tactic = "Neutra";
+    tactic = Tactic.Neutral;
   } else {
-    tactic = randomVal % 2 === 0 ? "Defensiva" : "Muito Defensiva";
+    tactic = randomVal % 2 === 0 ? Tactic.Defensive : Tactic.VeryDefensive;
   }
 
   const players: SimPlayer[] = [];
   const positions = getPositionsFromFormation(formation);
-  const teamSurnames = [...surnames].sort((a, b) => {
+  const teamSurnames = [...SURNAMES].sort((a, b) => {
     const codeA = (a.codePointAt(0) || 0) + (opponent.name.codePointAt(0) || 0);
     const codeB = (b.codePointAt(0) || 0) + (opponent.name.codePointAt(1) || 0);
     return (codeA % 10) - (codeB % 10);
@@ -127,17 +79,17 @@ export function getSimTeamFromOpponent(opponent: {
   };
 }
 
-function getTacticCoefficients(tactic: string) {
+function getTacticCoefficients(tactic: Tactic) {
   switch (tactic) {
-    case "Muito Defensiva":
+    case Tactic.VeryDefensive:
       return { atk: 0.6, def: 1.4 };
-    case "Defensiva":
+    case Tactic.Defensive:
       return { atk: 0.8, def: 1.2 };
-    case "Ofensiva":
+    case Tactic.Offensive:
       return { atk: 1.2, def: 0.8 };
-    case "Muito Ofensiva":
+    case Tactic.VeryOffensive:
       return { atk: 1.4, def: 0.6 };
-    case "Neutra":
+    case Tactic.Neutral:
     default:
       return { atk: 1, def: 1 };
   }

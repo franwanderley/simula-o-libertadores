@@ -1,4 +1,4 @@
-import { SquadSlot, Formation } from '@/types/game';
+import { SquadSlot, Formation, PlayerPosition } from '@/types/game';
 
 export const FORMATIONS: Formation[] = [
   '4-4-2',
@@ -11,6 +11,19 @@ export const FORMATIONS: Formation[] = [
   '4-3-2-1',
   '5-4-1'
 ];
+
+export const FORMATION_POSITIONS: Record<string, PlayerPosition[]> = {
+  "4-4-2": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "FW", "FW"],
+  "4-3-3": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "FW", "FW", "FW"],
+  "3-5-2": ["GK", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "MF", "FW", "FW"],
+  "5-3-2": ["GK", "DF", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "FW", "FW"],
+  "4-2-3-1": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "MF", "FW"],
+  "3-4-3": ["GK", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "FW", "FW", "FW"],
+  "4-5-1": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "MF", "FW"],
+  "4-3-2-1": ["GK", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "FW", "FW", "FW"],
+  "5-4-1": ["GK", "DF", "DF", "DF", "DF", "DF", "MF", "MF", "MF", "MF", "FW"],
+};
+
 
 export function getSlotsForFormation(formation: Formation): SquadSlot[] {
   switch (formation) {

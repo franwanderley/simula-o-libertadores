@@ -10,7 +10,7 @@ interface CompleteStepProps {
   onStartTournament: () => void;
 }
 
-export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) {
+export function CompleteStep({ onReset, onStartTournament }: Readonly<CompleteStepProps>) {
   const store = useGameStore();
 
   const userTeam = useMemo<OpponentTeam>(() => {
@@ -143,14 +143,7 @@ export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) 
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl">
-        {!store.groups ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-            <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4" />
-            <span className="text-xs font-black uppercase text-slate-500 tracking-wider">
-              Sorteando Grupos...
-            </span>
-          </div>
-        ) : (
+        {store.groups ? (
           <div>
             {userGroupKey && (
               <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -219,6 +212,13 @@ export function CompleteStep({ onReset, onStartTournament }: CompleteStepProps) 
               })}
             </div>
 
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+            <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4" />
+            <span className="text-xs font-black uppercase text-slate-500 tracking-wider">
+              Sorteando Grupos...
+            </span>
           </div>
         )}
       </div>

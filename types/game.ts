@@ -73,13 +73,21 @@ export interface SimPlayer {
   position: PlayerPosition;
 }
 
+export enum Tactic {
+  VeryDefensive = 'Muito Defensiva',
+  Defensive = 'Defensiva',
+  Neutral = 'Neutra',
+  Offensive = 'Ofensiva',
+  VeryOffensive = 'Muito Ofensiva',
+}
+
 export interface SimTeam {
   name: string;
   overall: number;
   players: SimPlayer[];
   chemistry: number;
   formation: string;
-  tactic: 'Muito Defensiva' | 'Defensiva' | 'Neutra' | 'Ofensiva' | 'Muito Ofensiva';
+  tactic: Tactic;
 }
 
 export interface MatchEvent {
