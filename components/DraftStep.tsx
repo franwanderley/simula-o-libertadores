@@ -54,6 +54,13 @@ const playStyleLabels: Record<PlayStyle, string> = {
   balanced: 'Equilibrado',
 };
 
+const POSITION_MAP: Record<string, string> = {
+  GK: 'GOL',
+  DF: 'DEF',
+  MF: 'MEI',
+  FW: 'ATA',
+};
+
 export function DraftStep({ onReset, onCompleteDraft }: Readonly<DraftStepProps>) {
   const store = useGameStore();
   const [activeSlot, setActiveSlot] = useState<SquadSlot | null>(null);
@@ -207,7 +214,7 @@ export function DraftStep({ onReset, onCompleteDraft }: Readonly<DraftStepProps>
                 </h3>
                 <p className="text-slate-400 text-xs mt-0.5">
                   Contratando para a posição:{' '}
-                  <span className="text-white font-bold">{activeSlot.position}</span>
+                  <span className="text-white font-bold">{POSITION_MAP[activeSlot.position] || activeSlot.position}</span>
                 </p>
               </div>
               <button

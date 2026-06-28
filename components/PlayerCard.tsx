@@ -1,5 +1,12 @@
 import { Player } from '@/types/game';
 
+const POSITION_MAP: Record<string, string> = {
+  GK: 'GOL',
+  DF: 'DEF',
+  MF: 'MEI',
+  FW: 'ATA',
+};
+
 interface PlayerCardProps {
   player: Player;
   onClick?: () => void;
@@ -35,7 +42,7 @@ export function PlayerCard({ player, onClick, showPrice = true, disabled = false
             {player.overall}
           </span>
           <span className={`text-xs font-bold px-1.5 py-0.5 rounded border mt-1 ${badgeStyles}`}>
-            {player.position}
+            {POSITION_MAP[player.position] || player.position}
           </span>
         </div>
         <div className="text-right flex flex-col items-end">
