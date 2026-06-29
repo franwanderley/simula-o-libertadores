@@ -90,6 +90,23 @@ export function LiveSimulationOverlay({
     }
   }, [liveEvents.length]);
 
+  useEffect(() => {
+    if (liveSimulation.currentMinute >= maxMinute) return;
+
+    const interval = setInterval(() => {
+      setLiveSimulation(prev => {
+        if (!prev) return null;
+        if (prev.currentMinute >= maxMinute) return prev;
+        return {
+          ...prev,
+          currentMinute: prev.currentMinute + 1
+        };
+      });
+    }, 600);
+
+    return () => clearInterval(interval);
+  }, [maxMinute, setLiveSimulation, liveSimulation.currentMinute]);
+
   if (!mainMatch) return null;
 
   const hasPenalties = mainMatch.result.penalties !== undefined;
@@ -433,7 +450,7 @@ export function LiveSimulationOverlay({
               }}
               className="px-6 py-3 bg-slate-850 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-850 hover:border-slate-700"
             >
-              Pular Simulacao
+              Pular Simulação
             </button>
           )}
         </div>
