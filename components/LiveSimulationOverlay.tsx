@@ -158,8 +158,9 @@ export function LiveSimulationOverlay({
   const otherMatches = liveSimulation.matches.filter(m => m.id !== mainMatch.id);
 
   return (
-    <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-xl z-50 p-6 pb-24 sm:pb-6 overflow-y-auto animate-in fade-in duration-200">
-      <div className="max-w-4xl mx-auto w-full flex flex-col min-h-full justify-between gap-4">
+    <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-xl z-50 flex flex-col animate-in fade-in duration-200">
+      <div className="flex-1 overflow-y-auto p-6 pb-24 sm:pb-6">
+        <div className="max-w-4xl mx-auto w-full flex flex-col justify-between gap-4 min-h-full">
         
         <div className="text-center flex flex-col items-center">
           <span className="text-[10px] bg-slate-800 px-3 py-1 rounded-md text-amber-500 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
@@ -423,35 +424,36 @@ export function LiveSimulationOverlay({
           </div>
         )}
 
-        <div className="fixed bottom-0 left-0 right-0 sm:relative sm:bottom-auto sm:left-auto sm:right-auto p-4 sm:p-0 bg-slate-950/90 sm:bg-transparent border-t border-slate-900 sm:border-none backdrop-blur-md sm:backdrop-blur-none flex justify-center gap-4 py-4 sm:py-2 z-50">
-          {isFinished ? (
-            <button
-              onClick={() => {
-                liveSimulation.onComplete();
-              }}
-              className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95"
-            >
-              Fechar Painel
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                setLiveSimulation(prev => {
-                  if (!prev) return null;
-                  return {
-                    ...prev,
-                    currentMinute: maxMinute
-                  };
-                });
-              }}
-              className="px-6 py-3 bg-slate-850 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-850 hover:border-slate-700"
-            >
-              Pular Simulação
-            </button>
-          )}
-        </div>
-
       </div>
     </div>
+
+    <div className="w-full bg-slate-950/90 border-t border-slate-900 backdrop-blur-md flex justify-center gap-4 py-4 p-4 z-50 shrink-0">
+      {isFinished ? (
+        <button
+          onClick={() => {
+            liveSimulation.onComplete();
+          }}
+          className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95"
+        >
+          Fechar Painel
+        </button>
+      ) : (
+        <button
+          onClick={() => {
+            setLiveSimulation(prev => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                currentMinute: maxMinute
+              };
+            });
+          }}
+          className="px-6 py-3 bg-slate-850 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-850 hover:border-slate-700"
+        >
+          Pular Simulação
+        </button>
+      )}
+    </div>
+  </div>
   );
 }

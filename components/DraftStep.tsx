@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Coins,
   Settings,
@@ -70,6 +70,13 @@ export function DraftStep({ onReset, onCompleteDraft }: Readonly<DraftStepProps>
   const [sortBy, setSortBy] = useState<'ovr-desc' | 'ovr-asc' | 'price-desc' | 'price-asc'>('ovr-desc');
   const uniqueClubs = Array.from(new Set(marketPlayers.map(p => p.club)));
   const uniqueNations = Array.from(new Set(marketPlayers.map(p => p.nationality)));
+  const marketRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeSlot && typeof window !== 'undefined' && window.innerWidth < 1024) {
+      marketRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [activeSlot]);
 
   const handleReset = () => {
     store.resetSquad();
@@ -204,7 +211,7 @@ export function DraftStep({ onReset, onCompleteDraft }: Readonly<DraftStepProps>
           </div>
         </div>
       </div>
-      <div className="w-full lg:w-96 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col max-h-150 lg:max-h-none overflow-hidden">
+      <div ref={marketRef} className="w-full lg:w-96 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col max-h-150 lg:max-h-none overflow-hidden">
         {activeSlot ? (
           <div className="flex flex-col h-full overflow-hidden">
             <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
