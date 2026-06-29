@@ -21,7 +21,7 @@ interface DraftStepProps {
 }
 
 const SLOT_POSITIONS: Record<string, { top: string; left: string }> = {
-  gk: { top: '85%', left: '50%' },
+  gk: { top: '91%', left: '50%' },
   lb: { top: '66%', left: '8%' },
   lcb: { top: '70%', left: '29%' },
   cb: { top: '74%', left: '50%' },
@@ -121,7 +121,7 @@ export function DraftStep({ onReset, onCompleteDraft }: Readonly<DraftStepProps>
                 <span className="text-white font-bold">{currentPlayStyleLabel}</span>
               </p>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
               <div className="bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700 flex items-center gap-2 shadow-inner">
                 <Coins className="w-5 h-5 text-yellow-400" />
                 <div className="flex flex-col">

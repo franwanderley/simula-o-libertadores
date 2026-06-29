@@ -158,7 +158,7 @@ export function LiveSimulationOverlay({
   const otherMatches = liveSimulation.matches.filter(m => m.id !== mainMatch.id);
 
   return (
-    <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-xl z-50 p-6 overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-xl z-50 p-6 pb-24 sm:pb-6 overflow-y-auto animate-in fade-in duration-200">
       <div className="max-w-4xl mx-auto w-full flex flex-col min-h-full justify-between gap-4">
         
         <div className="text-center flex flex-col items-center">
@@ -189,113 +189,65 @@ export function LiveSimulationOverlay({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-2">
           
-          <div className="md:col-span-2 flex flex-col gap-4">
+          <div className="md:col-span-2 order-1 md:order-1 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col gap-4">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl" />
             
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col gap-4 mb-6">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl" />
+            <div className="flex items-center justify-between gap-4">
               
-              <div className="flex items-center justify-between gap-4">
-                
-                <div className="flex flex-col items-center flex-1 min-w-0">
-                  <div className={`w-14 h-14 rounded-full ${mainMatch.teamA.logoColor} border border-white/10 shadow-lg flex items-center justify-center text-white font-black text-lg`}>
-                    {mainMatch.teamA.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
-                    {mainMatch.teamA.name}
-                  </span>
-                  <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase mt-1">
-                    {mainMatch.teamA.country}
-                  </span>
+              <div className="flex flex-col items-center flex-1 min-w-0">
+                <div className={`w-14 h-14 rounded-full ${mainMatch.teamA.logoColor} border border-white/10 shadow-lg flex items-center justify-center text-white font-black text-lg`}>
+                  {mainMatch.teamA.name.slice(0, 2).toUpperCase()}
                 </div>
-                
-                <div className="flex flex-col items-center justify-center shrink-0 px-4 relative">
-                  <div className="text-5xl font-black font-mono tracking-tight flex items-center gap-3">
-                    <span className={`${scoreAColor} transition-all duration-300`}>
-                      {scoreA}
-                      {hasPenalties && showShootoutState === 'completed' && (
-                        <span className="text-[10px] text-slate-400 font-normal block text-center mt-1">({shootout!.goalsA})</span>
-                      )}
-                    </span>
-                    <span className="text-slate-600 text-xl font-normal">:</span>
-                    <span className={`${scoreBColor} transition-all duration-300`}>
-                      {scoreB}
-                      {hasPenalties && showShootoutState === 'completed' && (
-                        <span className="text-[10px] text-slate-400 font-normal block text-center mt-1">({shootout!.goalsB})</span>
-                      )}
-                    </span>
-                  </div>
-                  {goalEvent && (
-                    <div className={`absolute -top-6 ${goalBadgeBg} border text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest animate-bounce shadow-lg`}>
-                      GOL!
-                    </div>
-                  )}
-                  <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-extrabold uppercase mt-2 tracking-wider">
-                    Ao Vivo
-                  </span>
-                </div>
-                
-                <div className="flex flex-col items-center flex-1 min-w-0">
-                  <div className={`w-14 h-14 rounded-full ${mainMatch.teamB.logoColor} border border-white/10 shadow-lg flex items-center justify-center text-white font-black text-lg`}>
-                    {mainMatch.teamB.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
-                    {mainMatch.teamB.name}
-                  </span>
-                  <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase mt-1">
-                    {mainMatch.teamB.country}
-                  </span>
-                </div>
-                
+                <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
+                  {mainMatch.teamA.name}
+                </span>
+                <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase mt-1">
+                  {mainMatch.teamA.country}
+                </span>
               </div>
-            </div>
-            
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col gap-4">
-              <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center">
-                Estatísticas em Tempo Real
-              </span>
               
-              <div className="flex flex-col gap-4">
-                <div>
-                  <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                    <span>{livePossA}%</span>
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">Posse de Bola</span>
-                    <span>{livePossB}%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                    <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${livePossA}%` }} />
-                    <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${livePossB}%` }} />
-                  </div>
+              <div className="flex flex-col items-center justify-center shrink-0 px-4 relative">
+                <div className="text-5xl font-black font-mono tracking-tight flex items-center gap-3">
+                  <span className={`${scoreAColor} transition-all duration-300`}>
+                    {scoreA}
+                    {hasPenalties && showShootoutState === 'completed' && (
+                      <span className="text-[10px] text-slate-400 font-normal block text-center mt-1">({shootout!.goalsA})</span>
+                    )}
+                  </span>
+                  <span className="text-slate-600 text-xl font-normal">:</span>
+                  <span className={`${scoreBColor} transition-all duration-300`}>
+                    {scoreB}
+                    {hasPenalties && showShootoutState === 'completed' && (
+                      <span className="text-[10px] text-slate-400 font-normal block text-center mt-1">({shootout!.goalsB})</span>
+                    )}
+                  </span>
                 </div>
-                
-                <div>
-                  <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                    <span>{liveShotsA}</span>
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">Finalizações</span>
-                    <span>{liveShotsB}</span>
+                {goalEvent && (
+                  <div className={`absolute -top-6 ${goalBadgeBg} border text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest animate-bounce shadow-lg`}>
+                    GOL!
                   </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                    <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${(liveShotsA / (liveShotsA + liveShotsB || 1)) * 100}%` }} />
-                    <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${(liveShotsB / (liveShotsA + liveShotsB || 1)) * 100}%` }} />
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                    <span>{liveFoulsA}</span>
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">Faltas</span>
-                    <span>{liveFoulsB}</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
-                    <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${(liveFoulsA / (liveFoulsA + liveFoulsB || 1)) * 100}%` }} />
-                    <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${(liveFoulsB / (liveFoulsA + liveFoulsB || 1)) * 100}%` }} />
-                  </div>
-                </div>
+                )}
+                <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-extrabold uppercase mt-2 tracking-wider">
+                  Ao Vivo
+                </span>
               </div>
+              
+              <div className="flex flex-col items-center flex-1 min-w-0">
+                <div className={`w-14 h-14 rounded-full ${mainMatch.teamB.logoColor} border border-white/10 shadow-lg flex items-center justify-center text-white font-black text-lg`}>
+                  {mainMatch.teamB.name.slice(0, 2).toUpperCase()}
+                </div>
+                <span className="text-sm font-black text-white mt-2 text-center truncate w-full">
+                  {mainMatch.teamB.name}
+                </span>
+                <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase mt-1">
+                  {mainMatch.teamB.country}
+                </span>
+              </div>
+              
             </div>
-            
           </div>
           
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-100">
+          <div className="md:col-span-1 md:row-span-2 order-2 md:order-2 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-100 md:h-full">
             <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center border-b border-slate-800 pb-2 mb-3">
               Lances do Jogo
             </span>
@@ -360,6 +312,50 @@ export function LiveSimulationOverlay({
                   })}
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="md:col-span-2 order-3 md:order-3 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col gap-4">
+            <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center">
+              Estatísticas em Tempo Real
+            </span>
+            
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
+                  <span>{livePossA}%</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Posse de Bola</span>
+                  <span>{livePossB}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
+                  <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${livePossA}%` }} />
+                  <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${livePossB}%` }} />
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
+                  <span>{liveShotsA}</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Finalizações</span>
+                  <span>{liveShotsB}</span>
+                </div>
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
+                  <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${(liveShotsA / (liveShotsA + liveShotsB || 1)) * 100}%` }} />
+                  <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${(liveShotsB / (liveShotsA + liveShotsB || 1)) * 100}%` }} />
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
+                  <span>{liveFoulsA}</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider">Faltas</span>
+                  <span>{liveFoulsB}</span>
+                </div>
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex p-0.5 border border-slate-700/50">
+                  <div className="bg-amber-500 h-full rounded-l-full transition-all duration-500" style={{ width: `${(liveFoulsA / (liveFoulsA + liveFoulsB || 1)) * 100}%` }} />
+                  <div className="bg-slate-600 h-full rounded-r-full transition-all duration-500" style={{ width: `${(liveFoulsB / (liveFoulsA + liveFoulsB || 1)) * 100}%` }} />
+                </div>
+              </div>
             </div>
           </div>
           
@@ -427,7 +423,7 @@ export function LiveSimulationOverlay({
           </div>
         )}
 
-        <div className="flex justify-center gap-4 py-2">
+        <div className="fixed bottom-0 left-0 right-0 sm:relative sm:bottom-auto sm:left-auto sm:right-auto p-4 sm:p-0 bg-slate-950/90 sm:bg-transparent border-t border-slate-900 sm:border-none backdrop-blur-md sm:backdrop-blur-none flex justify-center gap-4 py-4 sm:py-2 z-50">
           {isFinished ? (
             <button
               onClick={() => {

@@ -82,7 +82,7 @@ export function CompleteStep({ onReset, onStartTournament }: Readonly<CompleteSt
         <p className="text-slate-400 text-sm mb-8">
           Seu time titular de 11 jogadores foi montado com sucesso e está pronto para competir.
         </p>
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           <div className="bg-slate-800/60 border border-slate-700/50 p-4 rounded-2xl text-center">
             <span className="text-[10px] text-slate-400 font-extrabold uppercase">Ataque</span>
             <div className="text-2xl font-black text-red-500 mt-1">{store.attackOverall}</div>

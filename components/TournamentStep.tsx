@@ -11,7 +11,7 @@ import { checkUserElimination } from '../utils/tournament';
 import { GROUP_KEYS } from '../utils/groupKeys';
 
 const SLOT_POSITIONS: Record<string, { top: string; left: string }> = {
-  gk: { top: '85%', left: '50%' },
+  gk: { top: '91%', left: '50%' },
   lb: { top: '66%', left: '8%' },
   lcb: { top: '70%', left: '29%' },
   cb: { top: '74%', left: '50%' },
@@ -158,6 +158,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
   } | null>(null);
 
   const [copied, setCopied] = useState(false);
+  const [showAllGroupsMobile, setShowAllGroupsMobile] = useState(false);
 
   const isUserEliminated = checkUserElimination({
     isGroupSimulated: store.isGroupSimulated,
@@ -429,6 +430,18 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
   };
 
   const groupKeys = GROUP_KEYS;
+  let userGroupKey = '';
+  if (store.groups) {
+    for (const [gKey, teams] of Object.entries(store.groups)) {
+      if (teams.some(t => t.id === 'user_team')) {
+        userGroupKey = gKey;
+        break;
+      }
+    }
+  }
+  const orderedGroupKeys = userGroupKey
+    ? [userGroupKey, ...groupKeys.filter(k => k !== userGroupKey)]
+    : groupKeys;
 
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-6">
@@ -540,7 +553,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleShareCampaign}
                 className="flex-1 py-3 bg-linear-to-r from-amber-400 to-yellow-500 text-slate-950 font-black tracking-wider uppercase rounded-xl hover:shadow-xl active:scale-95 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center gap-1.5"
@@ -651,10 +664,17 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
             )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {groupKeys.map(gKey => {
+                {orderedGroupKeys.map(gKey => {
                   const standings = store.groupStandings?.[gKey] || [];
+                  const isUserGroup = gKey === userGroupKey;
+                  const hideOnMobile = !isUserGroup && !showAllGroupsMobile;
                   return (
-                    <div key={gKey} className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 shadow-lg hover:border-slate-700/50 transition-all duration-300">
+                    <div
+                      key={gKey}
+                      className={`bg-slate-900 border border-slate-800/80 rounded-2xl p-4 shadow-lg hover:border-slate-700/50 transition-all duration-300 ${
+                        hideOnMobile ? 'hidden sm:block' : 'block'
+                      }`}
+                    >
                       <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-3">
                         <span className="text-xs font-black uppercase text-amber-500 tracking-wider">Grupo {gKey}</span>
                         <span className="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 uppercase font-black">Standings</span>
@@ -697,7 +717,9 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
                       </div>
                       <button
                         onClick={() => setExpandedGroupMatches(expandedGroupMatches === gKey ? null : gKey)}
-                        className="mt-3 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[10px] uppercase rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                        className={`mt-3 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[10px] uppercase rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
+                          !isUserGroup ? 'hidden sm:flex' : 'flex'
+                        }`}
                       >
                         {expandedGroupMatches === gKey ? 'Ocultar Jogos' : 'Ver Jogos'}
                       </button>
@@ -715,6 +737,14 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
                     </div>
                   );
                 })}
+              </div>
+              <div className="sm:hidden flex justify-center mt-4">
+                <button
+                  onClick={() => setShowAllGroupsMobile(prev => !prev)}
+                  className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95"
+                >
+                  {showAllGroupsMobile ? 'Esconder outros grupos' : 'Ver outros grupos'}
+                </button>
               </div>
           </div>
         </div>

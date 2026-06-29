@@ -44,7 +44,7 @@ export function DraftSquadSlot({
       {slot.player ? (
         <div className="relative group flex flex-col items-center">
           <button
-            onClick={() => onActiveSlotSet(slot)}
+            onClick={() => onSellPlayer(slot.id)}
             className={`w-13 h-17 sm:w-16 sm:h-20 rounded-lg flex flex-col items-center justify-between p-1 sm:p-1.5 shadow-xl border-2 transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 ${playerCardStyles}`}
           >
             <span className="text-[10px] sm:text-xs font-black leading-none">{slot.player.overall}</span>
