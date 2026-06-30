@@ -82,13 +82,13 @@ export function getSimTeamFromOpponent(opponent: {
 function getTacticCoefficients(tactic: Tactic) {
   switch (tactic) {
     case Tactic.VeryDefensive:
-      return { atk: 0.6, def: 1.4 };
-    case Tactic.Defensive:
       return { atk: 0.8, def: 1.2 };
+    case Tactic.Defensive:
+      return { atk: 0.9, def: 1.1 };
     case Tactic.Offensive:
-      return { atk: 1.2, def: 0.8 };
+      return { atk: 1.1, def: 0.9 };
     case Tactic.VeryOffensive:
-      return { atk: 1.4, def: 0.6 };
+      return { atk: 1.2, def: 0.8 };
     case Tactic.Neutral:
     default:
       return { atk: 1, def: 1 };
@@ -203,7 +203,7 @@ function processChance(
   const defense = isTeamAChance ? finalDefB : finalDefA;
   const scoreProb = Math.min(
     0.8,
-    Math.max(0.05, (attack - defense + rngFactor + 10) / 100),
+    Math.max(0.05, (attack - defense + rngFactor + 22) / 100),
   );
 
   if (Math.random() < scoreProb) {
@@ -260,7 +260,11 @@ export function simulateMatch(teamA: SimTeam, teamB: SimTeam): MatchResult {
   let foulsB = 0;
 
   for (let min = 1; min <= 90; min++) {
-    if (Math.random() < 0.08) {
+    const baseChanceProb = 0.13;
+    const tacticFactor = (tacticA.atk + tacticB.atk) / 2;
+    const chanceProb = baseChanceProb * tacticFactor;
+
+    if (Math.random() < chanceProb) {
       const isTeamAChance = Math.random() < finalPossessionA / 100;
       if (isTeamAChance) {
         shotsA++;
