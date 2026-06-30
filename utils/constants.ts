@@ -1,7 +1,7 @@
 export const EVENT_STYLE_MAP = {
-  goal: 'bg-emerald-950/20 border-emerald-500/35 text-slate-200',
-  foul: 'bg-yellow-950/15 border-yellow-500/30 text-slate-300',
-  shot: 'bg-slate-950/30 border-slate-800 text-slate-300',
+  goal: "bg-emerald-950/20 border-emerald-500/35 text-slate-200",
+  foul: "bg-yellow-950/15 border-yellow-500/30 text-slate-300",
+  shot: "bg-slate-950/30 border-slate-800 text-slate-300",
 } as const;
 
 export const SURNAMES = [
@@ -37,3 +37,30 @@ export const SURNAMES = [
   "Guzman",
 ];
 
+export const DEFAULT_POSITION_NAMES: Record<string, string> = {
+  gk: "Weverton",
+  lb: "Guilherme Arana",
+  lwb: "Joaquín Piquerez",
+  lcb: "Thiago Silva",
+  cb: "Gustavo Gómez",
+  rcb: "Fabrício Bruno",
+  rb: "Luis Advíncula",
+  rwb: "Luis Advíncula",
+  lm: "Jhon Arias",
+  ldm: "Erick Pulgar",
+  cm: "Gerson",
+  lcm: "Nicolás De La Cruz",
+  rcm: "Rodrigo Garro",
+  cam: "G. De Arrascaeta",
+  rdm: "Arturo Vidal",
+  rm: "Lucas Moura",
+  lam: "Thiago Almada",
+  ram: "Raphael Veiga",
+  ls: "Germán Cano",
+  rs: "Hulk",
+  lw: "Estêvão",
+  st: "Pedro",
+  rw: "Luiz Henrique",
+  lf: "Jonathan Calleri",
+  rf: "Miguel Borja",
+};

@@ -73,7 +73,7 @@ export function DraftStep({ onReset, onCompleteDraft }: Readonly<DraftStepProps>
   const marketRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (activeSlot && typeof window !== 'undefined' && window.innerWidth < 1024) {
+    if (activeSlot && globalThis.window !== undefined && globalThis.window.innerWidth < 1024) {
       marketRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [activeSlot]);

@@ -248,7 +248,7 @@ export function LiveSimulationOverlay({
             </div>
           </div>
           
-          <div className="md:col-span-1 md:row-span-2 order-2 md:order-2 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-[400px] md:h-[500px]">
+          <div className="md:col-span-1 md:row-span-2 order-2 md:order-2 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-100 md:h-125">
             <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center border-b border-slate-800 pb-2 mb-3">
               Lances do Jogo
             </span>

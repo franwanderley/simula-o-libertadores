@@ -7,39 +7,15 @@ import {
 } from "@/types/game";
 import { opponentTeams } from "../../utils/teams";
 import { GROUP_KEYS } from "../../utils/groupKeys";
-import { getSimTeamFromOpponent, simulateMatch } from "../../utils/matchSimulator";
+import {
+  getSimTeamFromOpponent,
+  simulateMatch,
+} from "../../utils/matchSimulator";
 import { getMatchRound } from "../../utils/tournament";
 import { simulatePenalty } from "../../utils/penaltySimulator";
 import { shuffle } from "../../utils/function";
 import { TournamentSliceCreator, GameStore } from "./types";
-
-const DEFAULT_POSITION_NAMES: Record<string, string> = {
-  gk: "Weverton",
-  lb: "Guilherme Arana",
-  lwb: "Joaquín Piquerez",
-  lcb: "Thiago Silva",
-  cb: "Gustavo Gómez",
-  rcb: "Fabrício Bruno",
-  rb: "Luis Advíncula",
-  rwb: "Luis Advíncula",
-  lm: "Jhon Arias",
-  ldm: "Erick Pulgar",
-  cm: "Gerson",
-  lcm: "Nicolás De La Cruz",
-  rcm: "Rodrigo Garro",
-  cam: "G. De Arrascaeta",
-  rdm: "Arturo Vidal",
-  rm: "Lucas Moura",
-  lam: "Thiago Almada",
-  ram: "Raphael Veiga",
-  ls: "Germán Cano",
-  rs: "Hulk",
-  lw: "Estêvão",
-  st: "Pedro",
-  rw: "Luiz Henrique",
-  lf: "Jonathan Calleri",
-  rf: "Miguel Borja",
-};
+import { DEFAULT_POSITION_NAMES } from "@/utils/constants";
 
 const getUserSimTeam = (get: () => GameStore): SimTeam => {
   const {
