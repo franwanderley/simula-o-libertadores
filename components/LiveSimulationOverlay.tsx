@@ -190,7 +190,7 @@ export function LiveSimulationOverlay({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-2">
           
-          <div className="md:col-span-2 order-1 md:order-1 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col gap-4">
+          <div className="md:col-span-2 order-1 md:order-1 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col gap-4 h-fit">
             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl" />
             
             <div className="flex items-center justify-between gap-4">
@@ -248,7 +248,7 @@ export function LiveSimulationOverlay({
             </div>
           </div>
           
-          <div className="md:col-span-1 md:row-span-2 order-2 md:order-2 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-100 md:h-full">
+          <div className="md:col-span-1 md:row-span-2 order-2 md:order-2 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col h-[400px] md:h-[500px]">
             <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center border-b border-slate-800 pb-2 mb-3">
               Lances do Jogo
             </span>
@@ -316,7 +316,7 @@ export function LiveSimulationOverlay({
             </div>
           </div>
 
-          <div className="md:col-span-2 order-3 md:order-3 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col gap-4">
+          <div className="md:col-span-2 order-3 md:order-3 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col gap-4 h-fit">
             <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-center">
               Estatísticas em Tempo Real
             </span>
@@ -424,36 +424,66 @@ export function LiveSimulationOverlay({
           </div>
         )}
 
+        {/* Botão apenas para versão Desktop (não fixado) */}
+          <div className="hidden md:flex justify-center mt-6">
+            {isFinished ? (
+              <button
+                onClick={() => {
+                  liveSimulation.onComplete();
+                }}
+                className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95"
+              >
+                Fechar Painel
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setLiveSimulation(prev => {
+                    if (!prev) return null;
+                    return {
+                      ...prev,
+                      currentMinute: maxMinute
+                    };
+                  });
+                }}
+                className="px-6 py-3 bg-slate-850 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-850 hover:border-slate-700"
+              >
+                Pular Simulação
+              </button>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* Footer fixado apenas no Mobile */}
+      <div className="w-full bg-slate-950/90 border-t border-slate-900 backdrop-blur-md flex justify-center gap-4 py-4 p-4 z-50 shrink-0 md:hidden">
+        {isFinished ? (
+          <button
+            onClick={() => {
+              liveSimulation.onComplete();
+            }}
+            className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95"
+          >
+            Fechar Painel
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setLiveSimulation(prev => {
+                if (!prev) return null;
+                return {
+                  ...prev,
+                  currentMinute: maxMinute
+                };
+              });
+            }}
+            className="px-6 py-3 bg-slate-850 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-850 hover:border-slate-700"
+          >
+            Pular Simulação
+          </button>
+        )}
       </div>
     </div>
-
-    <div className="w-full bg-slate-950/90 border-t border-slate-900 backdrop-blur-md flex justify-center gap-4 py-4 p-4 z-50 shrink-0">
-      {isFinished ? (
-        <button
-          onClick={() => {
-            liveSimulation.onComplete();
-          }}
-          className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95"
-        >
-          Fechar Painel
-        </button>
-      ) : (
-        <button
-          onClick={() => {
-            setLiveSimulation(prev => {
-              if (!prev) return null;
-              return {
-                ...prev,
-                currentMinute: maxMinute
-              };
-            });
-          }}
-          className="px-6 py-3 bg-slate-850 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer active:scale-95 border border-slate-850 hover:border-slate-700"
-        >
-          Pular Simulação
-        </button>
-      )}
-    </div>
-  </div>
   );
 }
