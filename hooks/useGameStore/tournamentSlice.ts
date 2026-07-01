@@ -175,7 +175,7 @@ export const createTournamentSlice: TournamentSliceCreator = (set, get) => ({
             teamB.id === "user_team"
               ? getUserSimTeam(get)
               : getSimTeamFromOpponent(teamB);
-          const result = simulateMatch(simTeamA, simTeamB);
+          const result = simulateMatch(simTeamA, simTeamB, true);
           results[`group_${gKey}_${teamA.id}_${teamB.id}`] = result;
         }
       }

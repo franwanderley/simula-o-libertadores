@@ -223,7 +223,37 @@ function processChance(
   return { goal: false };
 }
 
-export function simulateMatch(teamA: SimTeam, teamB: SimTeam): MatchResult {
+export function simulateMatch(
+  initialTeamA: SimTeam,
+  initialTeamB: SimTeam,
+  isGroupStage = false,
+): MatchResult {
+  let teamA = initialTeamA;
+  let teamB = initialTeamB;
+
+  if (isGroupStage) {
+    const homeFactor = 1.05;
+    const awayFactor = 0.95;
+
+    teamA = {
+      ...initialTeamA,
+      overall: Math.min(99, Math.round(initialTeamA.overall * homeFactor)),
+      players: initialTeamA.players.map((p) => ({
+        ...p,
+        overall: Math.min(99, Math.round(p.overall * homeFactor)),
+      })),
+    };
+
+    teamB = {
+      ...initialTeamB,
+      overall: Math.max(50, Math.round(initialTeamB.overall * awayFactor)),
+      players: initialTeamB.players.map((p) => ({
+        ...p,
+        overall: Math.max(50, Math.round(p.overall * awayFactor)),
+      })),
+    };
+  }
+
   const tacticA = getTacticCoefficients(teamA.tactic);
   const tacticB = getTacticCoefficients(teamB.tactic);
 
@@ -260,7 +290,8 @@ export function simulateMatch(teamA: SimTeam, teamB: SimTeam): MatchResult {
   let foulsB = 0;
 
   for (let min = 1; min <= 90; min++) {
-    const baseChanceProb = 0.13;
+    const isLateGame = min >= 80;
+    const baseChanceProb = isLateGame ? 0.2 : 0.12;
     const tacticFactor = (tacticA.atk + tacticB.atk) / 2;
     const chanceProb = baseChanceProb * tacticFactor;
 
