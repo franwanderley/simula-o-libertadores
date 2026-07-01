@@ -33,9 +33,8 @@ export default function Home() {
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <p>© 2026 6 a 3 Libertadores Simulator. Todos os direitos reservados.</p>
           <div className="flex gap-4">
-            <a href="#" className="hover:text-slate-300 transition-colors">Suporte</a>
-            <a href="#" className="hover:text-slate-300 transition-colors">Termos</a>
-            <a href="#" className="hover:text-slate-300 transition-colors">Privacidade</a>
+            <a href="/termos" target="_blank" rel="noopener noreferrer" className="hover:text-slate-300 transition-colors">Termos</a>
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-slate-300 transition-colors">Privacidade</a>
           </div>
         </div>
       </footer>

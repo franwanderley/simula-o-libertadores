@@ -225,6 +225,7 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
     
     return (
       <button
+        id={isUserMatch ? 'user-match-card' : undefined}
         onClick={() => {
           if (canClick) {
             setSelectedMatch({
@@ -318,6 +319,24 @@ export function TournamentStep(props: Readonly<TournamentStepProps>) {
       store.simulateGroupStage();
     }
   }, [isDrawCompleted, store.groupStandings, store.simulateGroupStage, store]);
+
+  useEffect(() => {
+    if (activeTab === 'bracket' && store.isKnockoutDrawCompleted) {
+      if (globalThis.window !== undefined && globalThis.window.innerWidth < 768) {
+        const timer = setTimeout(() => {
+          const element = document.getElementById('user-match-card');
+          if (element) {
+            element.scrollIntoView({
+              behavior: 'smooth',
+              block: 'nearest',
+              inline: 'center'
+            });
+          }
+        }, 200);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [activeTab, store.isKnockoutDrawCompleted, store.knockoutRound]);
 
   if (store.groupStandings === null) {
     return (

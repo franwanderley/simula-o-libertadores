@@ -7,6 +7,24 @@ const POSITION_MAP: Record<string, string> = {
   FW: 'ATA',
 };
 
+const CARD_STYLE_MAP = {
+  legendary: 'from-amber-400 via-yellow-500 to-amber-600 text-amber-950 border-amber-300',
+  rare: 'from-zinc-300 via-zinc-400 to-zinc-500 text-zinc-950 border-zinc-200',
+  common: 'from-orange-700 via-orange-800 to-amber-900 text-orange-100 border-orange-600',
+} as const;
+
+const BADGE_STYLE_MAP = {
+  legendary: 'bg-amber-300 text-amber-950 border-amber-400',
+  rare: 'bg-zinc-200 text-zinc-950 border-zinc-300',
+  common: 'bg-orange-600 text-orange-100 border-orange-500',
+} as const;
+
+const getStyleKey = (overall: number) => {
+  if (overall >= 80) return 'legendary';
+  if (overall >= 74) return 'rare';
+  return 'common';
+};
+
 interface PlayerCardProps {
   player: Player;
   onClick?: () => void;
@@ -14,19 +32,10 @@ interface PlayerCardProps {
   disabled?: boolean;
 }
 
-export function PlayerCard({ player, onClick, showPrice = true, disabled = false }: PlayerCardProps) {
-  const isGold = player.overall >= 80;
-  const isSilver = player.overall >= 74 && player.overall < 80;
-  const cardStyles = isGold
-    ? 'from-amber-400 via-yellow-500 to-amber-600 text-amber-950 border-amber-300'
-    : isSilver
-    ? 'from-zinc-300 via-zinc-400 to-zinc-500 text-zinc-950 border-zinc-200'
-    : 'from-orange-700 via-orange-800 to-amber-900 text-orange-100 border-orange-600';
-  const badgeStyles = isGold
-    ? 'bg-amber-300 text-amber-950 border-amber-400'
-    : isSilver
-    ? 'bg-zinc-200 text-zinc-950 border-zinc-300'
-    : 'bg-orange-600 text-orange-100 border-orange-500';
+export function PlayerCard({ player, onClick, showPrice = true, disabled = false }: Readonly<PlayerCardProps>) {
+  const styleKey = getStyleKey(player.overall);
+  const cardStyles = CARD_STYLE_MAP[styleKey];
+  const badgeStyles = BADGE_STYLE_MAP[styleKey];
 
   return (
     <button
